@@ -1,0 +1,31 @@
+{
+  "name": "@app/frontend",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev -p 5166",
+    "lint": "next lint || tsc -p tsconfig.json --noEmit",
+    "start": "next start -p 5166",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm typecheck"
+  },
+  "dependencies": {
+    "@app/database": "workspace:*",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "next": "^15.5.7",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.1.17",
+    "@types/react-dom": "^19.1.11",
+    "autoprefixer": "^10.4.22",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "typescript": "^5.8.3"
+  }
+}

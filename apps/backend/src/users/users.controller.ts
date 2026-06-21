@@ -1,0 +1,59 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import type { Request } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
+import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UsersService } from './users.service';
+
+@Controller('users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Get('search')
+  search(@Query('q') q: string) {
+    return this.usersService.searchUsers(q ?? '');
+  }
+
+  @Get('me/stats')
+  @UseGuards(JwtAuthGuard)
+  myStats(@CurrentUser() user: AuthUser) {
+    return this.usersService.getUserStats(user.id);
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  updateMe(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
+    return this.usersService.updateProfile(user.id, dto);
+  }
+
+  @Get(':username')
+  @UseGuards(OptionalJwtAuthGuard)
+  getProfile(@Param('username') username: string, @Req() req: Request) {
+    const viewer = req.user as AuthUser | undefined;
+    return this.usersService.findByUsername(username, viewer?.id);
+  }
+
+  @Get(':username/posts')
+  getUserPosts(
+    @Param('username') username: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.usersService.getUserPosts(
+      username,
+      cursor ? Number(cursor) : undefined,
+      limit ? Number(limit) : 20,
+    );
+  }
+}

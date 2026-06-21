@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>shopee.review - Grid View</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed": "#d4e3ff",
+                        "on-primary-fixed": "#3e0500",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#1a1c1c",
+                        "on-tertiary-fixed-variant": "#005228",
+                        "primary": "#b22204",
+                        "on-surface-variant": "#5b403b",
+                        "surface-container-low": "#f3f3f3",
+                        "surface-container-high": "#e8e8e8",
+                        "surface-dim": "#dadada",
+                        "on-tertiary-container": "#f6fff4",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#008645",
+                        "tertiary": "#006a35",
+                        "tertiary-fixed-dim": "#4ae183",
+                        "outline": "#8f7069",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed": "#00210c",
+                        "inverse-surface": "#2f3131",
+                        "surface-bright": "#f9f9f9",
+                        "secondary": "#005fac",
+                        "error-container": "#ffdad6",
+                        "on-primary-container": "#fffbff",
+                        "surface-container": "#eeeeee",
+                        "on-secondary-fixed-variant": "#004884",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-surface": "#1a1c1c",
+                        "on-primary-fixed-variant": "#8d1600",
+                        "background": "#f9f9f9",
+                        "surface-variant": "#e2e2e2",
+                        "primary-container": "#d63c1e",
+                        "inverse-on-surface": "#f1f1f1",
+                        "primary-fixed-dim": "#ffb4a4",
+                        "surface-tint": "#b62506",
+                        "error": "#ba1a1a",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed": "#001c39",
+                        "tertiary-fixed": "#6bfe9c",
+                        "primary-fixed": "#ffdad3",
+                        "secondary-fixed-dim": "#a4c9ff",
+                        "on-secondary-container": "#003869",
+                        "secondary-container": "#56a3ff",
+                        "outline-variant": "#e3beb6",
+                        "inverse-primary": "#ffb4a4",
+                        "surface": "#f9f9f9"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "md": "16px",
+                        "container-max": "1200px",
+                        "xl": "48px",
+                        "base": "4px",
+                        "sm": "8px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "price-main": ["Inter"],
+                        "price-strikethrough": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "price-main": ["18px", { "lineHeight": "22px", "fontWeight": "700" }],
+                        "price-strikethrough": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "500" }],
+                        "headline-md": ["20px", { "lineHeight": "26px", "fontWeight": "600" }],
+                        "headline-lg": ["28px", { "lineHeight": "34px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md antialiased flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<nav class="bg-surface-container-lowest text-primary font-body-md text-body-md font-label-sm text-label-sm docked full-width top-0 sticky border-b border-surface-container-highest flat no shadows z-50">
+<div class="flex justify-between items-center px-lg py-sm w-full max-w-container-max mx-auto">
+<!-- Brand -->
+<div class="font-headline-md text-headline-md font-bold text-primary flex items-center gap-2">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">local_mall</span>
+                shopee.review
+            </div>
+<!-- Navigation Links -->
+<div class="hidden md:flex items-center gap-lg">
+<a class="text-on-surface-variant hover:text-primary transition-colors hover:bg-surface-container-low cursor-pointer active:opacity-80 py-2 px-4 rounded-lg" href="#">Feed</a>
+<a class="text-primary border-b-2 border-primary font-bold pb-1 cursor-pointer active:opacity-80 transition-colors" href="#">Grid</a>
+</div>
+<!-- Search (Mobile hidden, Desktop visible) -->
+<div class="hidden md:flex items-center flex-1 max-w-md mx-xl">
+<div class="relative w-full">
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-full py-2 pl-4 pr-10 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-body-md font-body-md text-on-surface" placeholder="Tìm kiếm sản phẩm, thương hiệu..." type="text"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined">search</span>
+</button>
+</div>
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-sm md:gap-md">
+<!-- Mobile Search Icon -->
+<button class="md:hidden text-on-surface-variant hover:text-primary p-2 rounded-full hover:bg-surface-container-low transition-colors cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined">search</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary p-2 rounded-full hover:bg-surface-container-low transition-colors relative cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></span>
+</button>
+<button class="text-on-surface-variant hover:text-primary p-2 rounded-full hover:bg-surface-container-low transition-colors cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined">shopping_cart</span>
+</button>
+<button class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant hover:border-primary transition-colors cursor-pointer active:opacity-80 ml-2">
+<img alt="User profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKaWF0ftcVinelNmuPOFA4Ym7zsa8uI6BNacBnKMzrb0ah6HUgfqVsFj07-HTzGDKQqW9pJEYlfStUVJtJepqYIW3EkpzGZ-4LaM7CpNA3RprlMIapmvfuV6Y8vzNG-ZbG8-rfnDnyNFhx-1sYsV059AGEgIOrxZb8xYb4xYdaF1knnxVYWugv-7QmQoxrsZZCd2bsMd6n0MjGUuXeQIGwL2vGraHPILFKJLWpkV_ZjPv68TpY7YYfAExa2NPO6JcmO3H1RKEiDME"/>
+</button>
+</div>
+</div>
+</nav>
+<!-- Main Content Area with SideNav and Grid -->
+<div class="flex flex-1 max-w-container-max mx-auto w-full">
+<!-- SideNavBar (Hidden on Mobile) -->
+<aside class="bg-surface text-secondary font-label-sm text-label-sm font-body-lg text-body-lg h-screen w-64 hidden lg:flex flex-col bg-surface-container-low flat no shadows fixed left-0 top-16 h-[calc(100vh-64px)] p-md overflow-y-auto border-r border-surface-container-highest z-40">
+<!-- Header -->
+<div class="mb-xl">
+<h2 class="font-headline-md text-headline-md text-primary mb-1">Trending Now</h2>
+<p class="text-on-surface-variant font-body-md text-body-md">Popular searches today</p>
+</div>
+<!-- Tabs -->
+<nav class="flex-1 flex flex-col gap-sm">
+<a class="text-on-surface-variant hover:bg-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 flex items-center gap-3 transition-all duration-200 ease-in-out cursor-pointer" href="#">
+<span class="material-symbols-outlined">bolt</span>
+<span class="font-body-lg text-body-lg">Flash Deals</span>
+</a>
+<a class="bg-secondary-container text-on-secondary-container font-bold rounded-xl px-4 py-3 flex items-center gap-3 transition-all duration-200 ease-in-out cursor-pointer" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">devices</span>
+<span class="font-body-lg text-body-lg">Electronics</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 flex items-center gap-3 transition-all duration-200 ease-in-out cursor-pointer" href="#">
+<span class="material-symbols-outlined">checkroom</span>
+<span class="font-body-lg text-body-lg">Fashion</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 flex items-center gap-3 transition-all duration-200 ease-in-out cursor-pointer" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-body-lg text-body-lg">Home Living</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 flex items-center gap-3 transition-all duration-200 ease-in-out cursor-pointer" href="#">
+<span class="material-symbols-outlined">content_cut</span>
+<span class="font-body-lg text-body-lg">Beauty</span>
+</a>
+</nav>
+<!-- Footer Tabs -->
+<div class="mt-auto pt-md border-t border-surface-container-highest flex flex-col gap-sm">
+<button class="w-full bg-surface-container-low text-primary border border-outline-variant font-body-md text-body-md py-2 rounded-lg hover:bg-surface-variant transition-colors mb-sm">
+                    View All Tags
+                </button>
+<a class="text-on-surface-variant hover:bg-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-2 flex items-center gap-3 transition-all duration-200 ease-in-out cursor-pointer" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+<a class="text-on-surface-variant hover:bg-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-2 flex items-center gap-3 transition-all duration-200 ease-in-out cursor-pointer" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-body-md text-body-md">Help Center</span>
+</a>
+</div>
+</aside>
+<!-- Main Grid Content -->
+<main class="flex-1 lg:ml-64 p-sm md:p-lg w-full">
+<!-- Filters Bar -->
+<div class="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-md mb-lg flex flex-col sm:flex-row justify-between items-center gap-md sticky top-[73px] z-30 shadow-sm">
+<div class="flex items-center gap-sm overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 scrollbar-hide">
+<span class="font-body-md text-body-md text-on-surface-variant whitespace-nowrap">Sắp xếp theo:</span>
+<button class="bg-primary text-on-primary px-4 py-2 rounded-full font-label-sm text-label-sm whitespace-nowrap hover:bg-primary-container transition-colors">Latest</button>
+<button class="bg-surface-container-lowest text-on-surface border border-outline-variant px-4 py-2 rounded-full font-label-sm text-label-sm whitespace-nowrap hover:bg-surface-container-low transition-colors">Top Sales</button>
+<button class="bg-surface-container-lowest text-on-surface border border-outline-variant px-4 py-2 rounded-full font-label-sm text-label-sm whitespace-nowrap hover:bg-surface-container-low transition-colors flex items-center gap-1">
+                        Price Low to High
+                        <span class="material-symbols-outlined text-[16px]">arrow_drop_up</span>
+</button>
+</div>
+<div class="flex items-center gap-2 w-full sm:w-auto">
+<div class="relative w-full sm:w-48">
+<select class="w-full appearance-none bg-surface-container-lowest border border-outline-variant rounded-lg py-2 pl-3 pr-8 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+<option>Thương hiệu</option>
+<option>Apple</option>
+<option>Samsung</option>
+<option>Sony</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+<button class="bg-surface-container-low border border-outline-variant p-2 rounded-lg text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+</div>
+<!-- Product Grid -->
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-sm md:gap-md">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-shadow duration-300 flex flex-col group cursor-pointer">
+<div class="relative aspect-square bg-[#E8F0FE] flex items-center justify-center p-4">
+<img alt="Apple Watch Series 8 on a clean background" class="object-cover w-full h-full mix-blend-multiply transition-transform duration-300 group-hover:scale-105" data-alt="A sleek, modern smart watch featuring a minimalist metallic face and a smooth, vibrant band, presented against a soft, bright, light-mode background. The lighting is crisp and studio-quality, emphasizing the premium textures and clean lines of the device. The composition is highly dense yet elegant, focusing squarely on the product. Accents of subtle color reflect the high-conversion, efficient retail aesthetic of the brand." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAC_F4q4xsw7zK04ujgpxaXx1VeTZ6bCHz2tz_ADHRfH69nWPxC_Vm7dMfn45d1kymE44xlLGYBifLsAkFTxyHOzfuDvf5w7-8MMpK9gucZCko9N_38gf8MoI6yjx_BG13Lj5HheAr13weL-LvR5iRzAqyHJ4US7scDUURC51rGu044raZSOiY2y9U8j209CI3rLKuAyfwssg7gGfHLh4INMSVTeeLLbqS6PMt0gdqrtP9aQTCnGp72aEEwnaBh5z5CdLGvR6lrOxc"/>
+<div class="absolute top-0 right-0 bg-primary text-on-primary font-label-sm text-label-sm px-2 py-1 rounded-bl-lg font-bold">
+                            -15%
+                        </div>
+<div class="absolute bottom-2 left-2 bg-surface-container-lowest/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-tertiary border border-surface-container-highest flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">verified</span>
+                            Mall
+                        </div>
+</div>
+<div class="p-sm md:p-md flex flex-col flex-1">
+<h3 class="font-body-md text-body-md text-on-surface line-clamp-2 mb-xs leading-tight min-h-[40px]">Apple Watch Series 8 GPS 41mm Viền Nhôm Dây Thể Thao</h3>
+<div class="flex items-center gap-1 mb-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">storefront</span>
+<span class="text-[11px] truncate">Apple Flagship Store</span>
+</div>
+<div class="mt-auto flex flex-col gap-base">
+<div class="flex items-baseline gap-2">
+<span class="font-price-main text-price-main text-primary">₫9.490.000</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant opacity-70">
+<span class="font-price-strikethrough text-price-strikethrough line-through">₫11.160.000</span>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary font-body-md text-body-md font-medium py-2 rounded-lg mt-sm hover:bg-primary-container transition-colors active:scale-[0.98]">
+                            Mua ngay
+                        </button>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-shadow duration-300 flex flex-col group cursor-pointer">
+<div class="relative aspect-square bg-[#F3E5F5] flex items-center justify-center p-4">
+<img alt="Premium noise cancelling headphones" class="object-cover w-full h-full mix-blend-multiply transition-transform duration-300 group-hover:scale-105" data-alt="A pair of premium, over-ear wireless headphones rendered in a sleek, modern corporate style against a bright, airy light-mode background. The lighting highlights the metallic accents and plush ear cups, conveying high quality and value. The layout is central and dense, reflecting a high-efficiency retail discovery platform. Subtle shadows ground the product, enhancing its trustworthy appearance." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAiapLKd9b_nB4GAFnq4jsDPgdCtJHfQxprmmZFb1oxUtZ0VW4-0NljRmtz36s9V5i8iH-oGG3PO_mQm-xTljGw2uGWvZcu3BzFyrLmPrTidmrhPtU5hLIirOP8F4-oGw7g3IXLCFMvZnhwVMu_WCAv8F5kAV0RMn9e36mhMJxKwMd31frtQTH8q-L9bSs_GOLsHZsqxNsugJnGg8s2ItcQbEBY0LqIiYOzq2JRVpKECc-K6ydrMd-DF3TYwYAnSJIMoewj9PMN4lY"/>
+<div class="absolute top-0 right-0 bg-primary text-on-primary font-label-sm text-label-sm px-2 py-1 rounded-bl-lg font-bold">
+                            -42%
+                        </div>
+</div>
+<div class="p-sm md:p-md flex flex-col flex-1">
+<h3 class="font-body-md text-body-md text-on-surface line-clamp-2 mb-xs leading-tight min-h-[40px]">Tai Nghe Chụp Tai Sony WH-1000XM5 Chống Ồn</h3>
+<div class="flex items-center gap-1 mb-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">storefront</span>
+<span class="text-[11px] truncate">Sony Official Store</span>
+</div>
+<div class="mt-auto flex flex-col gap-base">
+<div class="flex items-baseline gap-2">
+<span class="font-price-main text-price-main text-primary">₫6.990.000</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant opacity-70">
+<span class="font-price-strikethrough text-price-strikethrough line-through">₫11.990.000</span>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary font-body-md text-body-md font-medium py-2 rounded-lg mt-sm hover:bg-primary-container transition-colors active:scale-[0.98]">
+                            Mua ngay
+                        </button>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-shadow duration-300 flex flex-col group cursor-pointer">
+<div class="relative aspect-square bg-[#E0F2F1] flex items-center justify-center p-4">
+<img alt="Gaming console controller" class="object-cover w-full h-full mix-blend-multiply transition-transform duration-300 group-hover:scale-105" data-alt="A modern, ergonomic gaming controller placed centrally on a crisp, light-colored background. The image is brightly lit, creating a clear, trustworthy, and high-density visual suitable for a fast-paced retail feed. Subtle orange accent lights on the controller subtly mirror the platform's brand colors. The texture of the thumbsticks and buttons is sharply defined, inviting immediate action." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7f4Ck9YqRsO4cu-MHOxLPz_E9c16CH-4vClJ5k3mkN2NwjM17BI1fhUXrcA9L3IiZQdMPOkfnM5sXdfvZxdQvkvUpeFchBYstheBDnPORB8Qh-BToeyAD2lsgZjjeLNrRKCRLp14y5Q11IVcNBqWa4aSqC4DkQLU7ugfWwHLgBOFSDtzVZfEuYo2TM6g7T78kXufTDM6b2oCx-zFtqj8CALpk1074uwsDtk32WE9v1zFhXIpVhxvLjAYiXBBjWiu3I--IkjDMHyw"/>
+<div class="absolute top-0 right-0 bg-primary text-on-primary font-label-sm text-label-sm px-2 py-1 rounded-bl-lg font-bold">
+                            -25%
+                        </div>
+<div class="absolute bottom-2 left-2 bg-surface-container-lowest/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-tertiary border border-surface-container-highest flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">verified</span>
+                            Mall
+                        </div>
+</div>
+<div class="p-sm md:p-md flex flex-col flex-1">
+<h3 class="font-body-md text-body-md text-on-surface line-clamp-2 mb-xs leading-tight min-h-[40px]">Tay Cầm Chơi Game DualSense Không Dây PS5</h3>
+<div class="flex items-center gap-1 mb-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">storefront</span>
+<span class="text-[11px] truncate">PlayStation VN</span>
+</div>
+<div class="mt-auto flex flex-col gap-base">
+<div class="flex items-baseline gap-2">
+<span class="font-price-main text-price-main text-primary">₫1.649.000</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant opacity-70">
+<span class="font-price-strikethrough text-price-strikethrough line-through">₫2.199.000</span>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary font-body-md text-body-md font-medium py-2 rounded-lg mt-sm hover:bg-primary-container transition-colors active:scale-[0.98]">
+                            Mua ngay
+                        </button>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-shadow duration-300 flex flex-col group cursor-pointer">
+<div class="relative aspect-square bg-[#FFF3E0] flex items-center justify-center p-4">
+<img alt="Minimalist smart speaker" class="object-cover w-full h-full mix-blend-multiply transition-transform duration-300 group-hover:scale-105" data-alt="A sleek, minimalist smart speaker with a textured fabric finish, positioned perfectly in the center of a well-lit, pristine white background. The bright, light-mode studio lighting emphasizes the product's high quality and modern design. The composition is tight and efficient, aligning with a high-information density corporate retail style. The aesthetic is clean, energetic, and highly trustworthy." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAz2UUO8ZyHyod1GK08ue_rrq-ULP-eFRezib8-vgwT9NZ9lMYSgakGXuJa_Mu9NbRPvBI8_e0m66hss-l2OD7qSSFjYA7Rd1LvUBtPQMvYtF0KKTxtXPTzzmNbv1t2oL9vobYpmp0erIglSMjBlQ_jzuQ1PEjIzIM0fmFNU5mQsKUL64k7lDn7p_fj2729GpX1xF6MJ1cszucMaDGch1r1TVuG-P1RMPCvmt7WNiBla06adE5vn3h_9ILhvA3y1svnVBr-o2wIzWo"/>
+<div class="absolute top-0 right-0 bg-primary text-on-primary font-label-sm text-label-sm px-2 py-1 rounded-bl-lg font-bold">
+                            -55%
+                        </div>
+</div>
+<div class="p-sm md:p-md flex flex-col flex-1">
+<h3 class="font-body-md text-body-md text-on-surface line-clamp-2 mb-xs leading-tight min-h-[40px]">Loa Thông Minh Có Trợ Lý Ảo Tiếng Việt</h3>
+<div class="flex items-center gap-1 mb-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">storefront</span>
+<span class="text-[11px] truncate">TechZone Authentic</span>
+</div>
+<div class="mt-auto flex flex-col gap-base">
+<div class="flex items-baseline gap-2">
+<span class="font-price-main text-price-main text-primary">₫899.000</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant opacity-70">
+<span class="font-price-strikethrough text-price-strikethrough line-through">₫1.999.000</span>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary font-body-md text-body-md font-medium py-2 rounded-lg mt-sm hover:bg-primary-container transition-colors active:scale-[0.98]">
+                            Mua ngay
+                        </button>
+</div>
+</div>
+<!-- Add more cards as needed to demonstrate grid... duplicating for visual fill -->
+<!-- Card 5 -->
+<div class="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-shadow duration-300 flex flex-col group cursor-pointer hidden md:flex">
+<div class="relative aspect-square bg-[#E8EAF6] flex items-center justify-center p-4">
+<img alt="Bluetooth wireless earbuds" class="object-cover w-full h-full mix-blend-multiply transition-transform duration-300 group-hover:scale-105" data-alt="A pair of sleek, modern true wireless earbuds resting securely inside their compact charging case, photographed against a stark, light-colored background. The high-key lighting casts soft, minimal shadows, emphasizing a clean, fast-paced retail aesthetic. The tight framing ensures high information density, while the pristine surfaces communicate trust and high value. The overall mood is energetic and ready for action." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmlflZWzs0MRLHurcZM0YgW1HMHXXu8lmOCoXbLuf6lqRoz460X6N41CXtHfpoOvKVw_ofgxU59FrR5rBmOfINzTFBveSSrt7RHOoPYc1m1c-qs9kNmsB046rKwbV8G8V2EewjE3KI31Ich7WPR01Zv2vNqBUlo7jbaXvqSoKQ8jUfGO4qB4ifCN3tTXXmLByEUInej4bpDukjRcsrzc8v-FXYxC0sEIs3zGhPxDwUD0xAnmos4Ehq0Ef1xe4BCI7FPXr1Jkt04PY"/>
+<div class="absolute top-0 right-0 bg-primary text-on-primary font-label-sm text-label-sm px-2 py-1 rounded-bl-lg font-bold">
+                            -30%
+                        </div>
+</div>
+<div class="p-sm md:p-md flex flex-col flex-1">
+<h3 class="font-body-md text-body-md text-on-surface line-clamp-2 mb-xs leading-tight min-h-[40px]">Tai Nghe Bluetooth TWS Chống Nước IPX5</h3>
+<div class="flex items-center gap-1 mb-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">storefront</span>
+<span class="text-[11px] truncate">AudioCenter</span>
+</div>
+<div class="mt-auto flex flex-col gap-base">
+<div class="flex items-baseline gap-2">
+<span class="font-price-main text-price-main text-primary">₫450.000</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant opacity-70">
+<span class="font-price-strikethrough text-price-strikethrough line-through">₫650.000</span>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary font-body-md text-body-md font-medium py-2 rounded-lg mt-sm hover:bg-primary-container transition-colors active:scale-[0.98]">
+                            Mua ngay
+                        </button>
+</div>
+</div>
+<!-- Card 6 -->
+<div class="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-shadow duration-300 flex flex-col group cursor-pointer hidden xl:flex">
+<div class="relative aspect-square bg-[#FBE9E7] flex items-center justify-center p-4">
+<img alt="Digital tablet device" class="object-cover w-full h-full mix-blend-multiply transition-transform duration-300 group-hover:scale-105" data-alt="A slim, elegant digital tablet displaying a vibrant screen, laid flat on an exceptionally clean, bright surface. The lighting is optimized for an e-commerce platform, ensuring every detail is sharp and trustworthy. The composition uses high information density techniques, keeping the focus entirely on the product without distraction. The modern corporate style is clear, efficient, and visually appealing." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1NVnO5vbZcdbGxPmTeoCCHopQ4UvgGu4iU0Opb_tCVjPPzte01x9Fa7SC01Oy2jMW92HpEWaEqAuPoZo4f1U6d82Cwf-QCmJeTQlqZTrUO3e178gOzHXyirquetjUXdwuVYTsEb8VhavM_GTIkLhwnSRCL4RiBj-XHwYP2RGTq8bY2cCD2ICjLn6cHfPARo_SHXR-zTyee4g7B6SgkaRJL_rLEsYJrR0RUYA9YRBFEXYbB7p9j6LwH0AnL3t_7u0d4vX6PDl3ddE"/>
+<div class="absolute top-0 right-0 bg-primary text-on-primary font-label-sm text-label-sm px-2 py-1 rounded-bl-lg font-bold">
+                            -10%
+                        </div>
+</div>
+<div class="p-sm md:p-md flex flex-col flex-1">
+<h3 class="font-body-md text-body-md text-on-surface line-clamp-2 mb-xs leading-tight min-h-[40px]">Máy Tính Bảng 10.4 inch RAM 4GB/64GB</h3>
+<div class="flex items-center gap-1 mb-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">storefront</span>
+<span class="text-[11px] truncate">Tablet World</span>
+</div>
+<div class="mt-auto flex flex-col gap-base">
+<div class="flex items-baseline gap-2">
+<span class="font-price-main text-price-main text-primary">₫5.200.000</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant opacity-70">
+<span class="font-price-strikethrough text-price-strikethrough line-through">₫5.800.000</span>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary font-body-md text-body-md font-medium py-2 rounded-lg mt-sm hover:bg-primary-container transition-colors active:scale-[0.98]">
+                            Mua ngay
+                        </button>
+</div>
+</div>
+</div>
+<!-- Pagination/Load More -->
+<div class="mt-xl flex justify-center pb-xl">
+<button class="bg-surface-container-low text-on-surface border border-outline-variant font-body-md text-body-md font-medium py-3 px-8 rounded-full hover:bg-surface-container-highest transition-colors">
+                    Xem thêm sản phẩm
+                </button>
+</div>
+</main>
+</div>
+<!-- Footer -->
+<footer class="bg-surface-container-high text-primary font-label-sm text-label-sm font-body-lg text-body-lg text-on-surface full-width border-t border-outline-variant flat no shadows w-full py-xl px-lg mt-auto flex flex-col md:flex-row justify-between items-center gap-md z-40 relative">
+<div class="text-on-surface-variant text-center md:text-left">
+            © 2024 shopee.review. Community-driven deal discovery.
+        </div>
+<div class="flex flex-wrap justify-center gap-md md:gap-lg">
+<a class="text-on-surface-variant hover:text-primary hover:underline transition-all opacity-90 hover:opacity-100" href="#">About Us</a>
+<a class="text-on-surface-variant hover:text-primary hover:underline transition-all opacity-90 hover:opacity-100" href="#">Privacy Policy</a>
+<a class="text-on-surface-variant hover:text-primary hover:underline transition-all opacity-90 hover:opacity-100" href="#">Terms of Service</a>
+<a class="text-on-surface-variant hover:text-primary hover:underline transition-all opacity-90 hover:opacity-100" href="#">Contact</a>
+</div>
+</footer>
+<script>
+        // Simple script to handle mobile bottom nav visibility logic if needed,
+        // though per instructions mobile uses BottomNav (which is suppressed here as per "Destination Rule" if not needed, 
+        // but Grid View is a top level destination. I will omit BottomNav to strictly follow the prompt's focus on Grid layout, 
+        // relying on the responsive TopNav for mobile as provided in the shared components).
+        
+        // Active state logic for top nav is hardcoded in HTML (Grid is active).
+    </script>
+</body></html>
