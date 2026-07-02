@@ -1,15 +1,112 @@
 import type { Config } from 'tailwindcss';
 
+// Design tokens imported 1:1 from the Stitch "Shopee Social Review Hub" design system.
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        brand: '#f97316'
-      }
-    }
+        'secondary-fixed-dim': '#ffb4a5',
+        'surface-container-lowest': '#ffffff',
+        'surface-container-low': '#f6f3f2',
+        outline: '#8f7069',
+        background: '#fcf9f8',
+        'surface-container': '#f0eded',
+        error: '#ba1a1a',
+        'on-tertiary-fixed-variant': '#004591',
+        'tertiary-container': '#2472dc',
+        'inverse-surface': '#303030',
+        primary: '#b22204',
+        'surface-bright': '#fcf9f8',
+        'surface-variant': '#e5e2e1',
+        'primary-container': '#d63c1e',
+        'primary-fixed': '#ffdad3',
+        'inverse-on-surface': '#f3f0ef',
+        'tertiary-fixed': '#d7e2ff',
+        'on-error-container': '#93000a',
+        'on-secondary-fixed-variant': '#86220f',
+        'on-secondary-fixed': '#3e0400',
+        'on-secondary-container': '#701102',
+        'secondary-container': '#fd795e',
+        surface: '#fcf9f8',
+        'on-secondary': '#ffffff',
+        secondary: '#a73924',
+        'surface-container-high': '#eae7e7',
+        'surface-tint': '#b62506',
+        'surface-dim': '#dcd9d9',
+        'on-primary-fixed': '#3e0500',
+        'on-primary-fixed-variant': '#8d1600',
+        'primary-fixed-dim': '#ffb4a4',
+        'on-tertiary': '#ffffff',
+        'on-background': '#1b1b1c',
+        'outline-variant': '#e3beb6',
+        'on-surface-variant': '#5b403b',
+        'on-primary': '#ffffff',
+        'tertiary-fixed-dim': '#acc7ff',
+        'on-primary-container': '#fffbff',
+        'on-surface': '#1b1b1c',
+        'error-container': '#ffdad6',
+        'secondary-fixed': '#ffdad3',
+        'on-tertiary-fixed': '#001a40',
+        'inverse-primary': '#ffb4a4',
+        'surface-container-highest': '#e5e2e1',
+        tertiary: '#0059b9',
+        'on-error': '#ffffff',
+        'on-tertiary-container': '#fefcff',
+        // semantic accent tokens (extracted from hardcoded usages)
+        rating: '#f9bc00',
+        like: '#f91880',
+        'warning-surface': '#fffbeb',
+        'warning-border': '#fde68a',
+        'warning-on': '#b45309',
+        // legacy alias kept for backwards compatibility
+        brand: '#b22204',
+      },
+      boxShadow: {
+        card: '0 4px 12px rgba(0,0,0,0.04)',
+        'card-hover': '0 8px 24px rgba(0,0,0,0.08)',
+      },
+      borderRadius: {
+        DEFAULT: '0.25rem',
+        lg: '0.5rem',
+        xl: '0.75rem',
+        full: '9999px',
+      },
+      spacing: {
+        lg: '24px',
+        sm: '8px',
+        base: '4px',
+        md: '16px',
+        xs: '4px',
+        gutter: '16px',
+        'container-max': '1200px',
+        xl: '40px',
+      },
+      maxWidth: {
+        'container-max': '1200px',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        'display-lg': ['Inter'],
+        'body-md': ['Inter'],
+        'headline-md': ['Inter'],
+        'price-lg': ['Inter'],
+        'body-sm': ['Inter'],
+        'label-caps': ['Inter'],
+        'display-lg-mobile': ['Inter'],
+      },
+      fontSize: {
+        'display-lg': ['32px', { lineHeight: '40px', letterSpacing: '-0.02em', fontWeight: '700' }],
+        'body-md': ['16px', { lineHeight: '24px', fontWeight: '400' }],
+        'headline-md': ['20px', { lineHeight: '28px', fontWeight: '600' }],
+        'price-lg': ['20px', { lineHeight: '24px', letterSpacing: '-0.01em', fontWeight: '700' }],
+        'body-sm': ['14px', { lineHeight: '20px', fontWeight: '400' }],
+        'label-caps': ['12px', { lineHeight: '16px', letterSpacing: '0.05em', fontWeight: '600' }],
+        'display-lg-mobile': ['24px', { lineHeight: '30px', fontWeight: '700' }],
+      },
+    },
   },
-  plugins: []
+  plugins: [],
 };
 
 export default config;
