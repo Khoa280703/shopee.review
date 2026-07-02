@@ -10,16 +10,18 @@
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
-    "seed": "tsx prisma/seed-sample-data.ts",
+    "seed": "tsx prisma/seed.ts",
     "studio": "prisma studio",
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm typecheck"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.0"
+    "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.3"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
     "prisma": "^6.19.0",
     "tsx": "^4.22.4",
     "typescript": "^5.8.3"
