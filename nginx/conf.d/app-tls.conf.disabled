@@ -1,0 +1,55 @@
+# =============================================================================
+# HTTPS / TLS server config (Let's Encrypt). DISABLED by default.
+#
+# Enable in 3 steps:
+#   1. Set DOMAIN + CERTBOT_EMAIL in .env, point DNS A record at this host.
+#   2. Issue the first certificate (HTTP-01 over the running HTTP server):
+#        docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
+#          -d "$DOMAIN" --email "$CERTBOT_EMAIL" --agree-tos --no-eff-email
+#   3. Replace the plain-HTTP vhost with this one and reload:
+#        mv nginx/conf.d/app.conf            nginx/conf.d/app.conf.http-only
+#        mv nginx/conf.d/app-tls.conf.disabled nginx/conf.d/app.conf
+#        # edit server_name + ssl_certificate paths below to match $DOMAIN
+#        docker compose exec nginx nginx -s reload
+#   Also set COOKIE_SECURE=true (backend) so auth cookies get the Secure flag,
+#   and uncomment the HSTS header below.
+#
+# Certbot auto-renews via its container's entrypoint loop; nginx reloads picks
+# up renewed certs (or run `docker compose exec nginx nginx -s reload` on a timer).
+# =============================================================================
+
+# HTTP: serve ACME challenges + redirect everything else to HTTPS.
+server {
+  listen 80;
+  server_name example.com;  # <-- set to $DOMAIN
+
+  location /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+  }
+
+  location / {
+    return 301 https://$host$request_uri;
+  }
+}
+
+# HTTPS: terminate TLS, then proxy via the shared location snippet.
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name example.com;  # <-- set to $DOMAIN
+
+  ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;  # <-- $DOMAIN
+  ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;    # <-- $DOMAIN
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers off;
+  ssl_session_cache shared:SSL:10m;
+  ssl_session_timeout 1d;
+
+  # ---- Security headers ----
+  add_header X-Frame-Options SAMEORIGIN always;
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+  include /etc/nginx/snippets/app-locations.conf;
+}
