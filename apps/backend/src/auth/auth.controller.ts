@@ -15,6 +15,8 @@ import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -60,6 +62,23 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser): AuthUser {
     return user;
+  }
+
+  @Post('forgot-password')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ success: boolean }> {
+    await this.authService.forgotPassword(dto.email);
+    // Always success to avoid leaking which emails are registered.
+    return { success: true };
+  }
+
+  @Post('reset-password')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<{ success: boolean }> {
+    await this.authService.resetPassword(dto.token, dto.password);
+    return { success: true };
   }
 
   @Get('verify')
