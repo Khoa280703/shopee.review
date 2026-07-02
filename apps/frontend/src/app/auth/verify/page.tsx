@@ -10,8 +10,14 @@ import { buttonClasses } from '@/components/ui/button-classes';
 function VerifyInner() {
   const params = useSearchParams();
   const token = params.get('token');
-  const { refresh } = useAuth();
+  const { refresh, user } = useAuth();
   const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
+  const [resent, setResent] = useState(false);
+
+  const resend = () => {
+    if (!user?.email) return;
+    authApi.resendVerification(user.email).finally(() => setResent(true));
+  };
 
   useEffect(() => {
     if (!token) {
@@ -43,6 +49,16 @@ function VerifyInner() {
         <div className="space-y-4">
           <h1 className="text-headline-md font-bold text-error">Xác minh thất bại</h1>
           <p className="text-on-surface-variant">Link không hợp lệ hoặc đã hết hạn.</p>
+          {user?.email &&
+            (resent ? (
+              <p className="text-body-sm text-tertiary">
+                Đã gửi lại email xác minh (nếu tài khoản chưa xác minh). Kiểm tra hộp thư.
+              </p>
+            ) : (
+              <button onClick={resend} className={buttonClasses({ size: 'lg' })}>
+                Gửi lại email xác minh
+              </button>
+            ))}
           <Link href="/" className={buttonClasses({ variant: 'outline', size: 'lg' })}>
             Về trang chủ
           </Link>

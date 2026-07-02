@@ -78,6 +78,16 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ token, password }),
     }),
+  resendVerification: (email: string) =>
+    apiFetch<{ success: boolean }>('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<{ success: boolean }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
   googleUrl: () => `${API_URL}/auth/google`,
 };
 
@@ -147,6 +157,8 @@ export const usersApi = {
 
 // ---------- Social ----------
 export const socialApi = {
+  followStatus: (username: string) =>
+    apiFetch<{ following: boolean }>(`/users/${username}/follow-status`),
   follow: (username: string) =>
     apiFetch<{ following: boolean }>(`/users/${username}/follow`, { method: 'POST' }),
   unfollow: (username: string) =>

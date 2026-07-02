@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { parseAllowedOrigins } from '../common/shopee-url';
+import { PrismaService } from '../prisma/prisma.service';
 
 const room = (postId: number | string) => `post:${postId}`;
 
@@ -31,19 +32,36 @@ export class SocialGateway
   private readonly logger = new Logger(SocialGateway.name);
   private connections = 0;
 
-  constructor(private readonly jwt: JwtService) {}
+  constructor(
+    private readonly jwt: JwtService,
+    private readonly prisma: PrismaService,
+  ) {}
 
-  handleConnection(client: Socket): void {
+  async handleConnection(client: Socket): Promise<void> {
     this.connections += 1;
     const token = client.handshake.auth?.token as string | undefined;
-    if (token) {
-      try {
-        const payload = this.jwt.verify<{ sub: number; username: string }>(token);
-        client.data.userId = payload.sub;
-        client.data.username = payload.username;
-      } catch {
-        // Invalid token → stay connected as anonymous (read-only).
+    if (!token) return;
+    try {
+      const payload = this.jwt.verify<{
+        sub: number;
+        username: string;
+        ver?: number;
+      }>(token);
+      // The gateway verifies tokens directly (not via JwtStrategy), so it must
+      // replicate the revocation check — otherwise a revoked user keeps a live
+      // WebSocket. (Phase 5 adds the bannedAt check here too.) Anonymous
+      // (read-only) on any failure.
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { tokenVersion: true },
+      });
+      if (!user || (payload.ver ?? 0) !== user.tokenVersion) {
+        return;
       }
+      client.data.userId = payload.sub;
+      client.data.username = payload.username;
+    } catch {
+      // Invalid token → stay connected as anonymous (read-only).
     }
   }
 

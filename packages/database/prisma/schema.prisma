@@ -30,8 +30,11 @@ model User {
   avatarUrl       String?   @map("avatar_url")
   emailVerified   Boolean   @default(false) @map("email_verified")
   verifyToken     String?   @unique @map("verify_token")
+  verifyTokenExp  DateTime? @map("verify_token_exp")
   resetToken      String?   @unique @map("reset_token")
   resetTokenExp   DateTime? @map("reset_token_exp")
+  // Bumped on password reset/change and ban → invalidates all prior JWTs.
+  tokenVersion    Int       @default(0) @map("token_version")
   affiliateId     String?   @map("affiliate_id") @db.VarChar(100)
   totalClicks     Int       @default(0) @map("total_clicks")
   followersCount  Int       @default(0) @map("followers_count")

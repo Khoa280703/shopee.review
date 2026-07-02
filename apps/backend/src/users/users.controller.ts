@@ -56,6 +56,13 @@ export class UsersController {
     return this.usersService.findByUsername(username, viewer?.id);
   }
 
+  @Get(':username/follow-status')
+  @UseGuards(OptionalJwtAuthGuard)
+  followStatus(@Param('username') username: string, @Req() req: Request) {
+    const viewer = req.user as AuthUser | undefined;
+    return this.usersService.followStatus(username, viewer?.id);
+  }
+
   @Get(':username/posts')
   getUserPosts(
     @Param('username') username: string,

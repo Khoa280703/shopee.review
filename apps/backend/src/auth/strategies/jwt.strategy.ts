@@ -26,14 +26,34 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: number; username: string }): Promise<AuthUser> {
+  async validate(payload: {
+    sub: number;
+    username: string;
+    ver?: number;
+  }): Promise<AuthUser> {
+    // Single query. Load only what's needed: strip secrets via omit, keep
+    // tokenVersion for the revocation check, then remove it before returning.
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      omit: { passwordHash: true, verifyToken: true },
+      omit: {
+        passwordHash: true,
+        verifyToken: true,
+        verifyTokenExp: true,
+        resetToken: true,
+        resetTokenExp: true,
+      },
     });
     if (!user) {
       throw new UnauthorizedException('Phiên đăng nhập không hợp lệ');
     }
-    return user;
+    // Revocation: a token whose version doesn't match the user's current
+    // tokenVersion is stale (password reset/change or ban). Legacy pre-`ver`
+    // tokens are treated as 0 (the global-bump migration set every existing
+    // user to 1, so those are already invalidated).
+    const { tokenVersion, ...authUser } = user;
+    if ((payload.ver ?? 0) !== tokenVersion) {
+      throw new UnauthorizedException('Phiên đăng nhập đã hết hạn');
+    }
+    return authUser;
   }
 }

@@ -12,11 +12,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import type { User } from '@app/database';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -46,7 +49,9 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 15 * 60 * 1000 } })
   login(
     @Body() _dto: LoginDto,
-    @CurrentUser() user: AuthUser,
+    // LocalStrategy puts the full user row on the request; login() signs the
+    // cookie (needs tokenVersion) and returns the sanitized shape.
+    @CurrentUser() user: User,
     @Res({ passthrough: true }) res: Response,
   ): { user: AuthUser } {
     return { user: this.authService.login(user, res) };
@@ -87,6 +92,34 @@ export class AuthController {
       throw new BadRequestException('Thiếu token');
     }
     await this.authService.verifyEmail(token);
+    return { success: true };
+  }
+
+  @Post('resend-verification')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 3, ttl: 15 * 60 * 1000 } })
+  async resendVerification(
+    @Body() dto: ResendVerificationDto,
+  ): Promise<{ success: boolean }> {
+    await this.authService.resendVerification(dto.email);
+    // Always success — no enumeration of registered/verified emails.
+    return { success: true };
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
+  async changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ success: boolean }> {
+    await this.authService.changePassword(
+      user.id,
+      dto.currentPassword,
+      dto.newPassword,
+      res,
+    );
     return { success: true };
   }
 

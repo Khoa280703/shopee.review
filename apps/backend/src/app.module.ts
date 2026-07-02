@@ -36,7 +36,10 @@ import { UsersModule } from './users/users.module';
     // /metrics + /health are silenced to keep scrape/probe noise out of logs.
     LoggerModule.forRoot({
       pinoHttp: {
-        level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
+        // `||` (not `??`): an empty LOG_LEVEL="" (as shipped in .env.example)
+        // must fall through to the default, else pino throws "default level:
+        // must be included in custom levels" and the app crashes on boot.
+        level: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
         genReqId: (req) =>
           (req.headers['x-request-id'] as string) ?? randomUUID(),
         autoLogging: {

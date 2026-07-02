@@ -40,6 +40,20 @@ export class UsersService {
     return { ...rest, totalPosts: _count.posts, isFollowing, isSelf: viewerId === user.id };
   }
 
+  /** Lean follow-state lookup for the FollowButton on pages without server auth. */
+  async followStatus(username: string, viewerId?: number): Promise<{ following: boolean }> {
+    if (!viewerId) return { following: false };
+    const target = await this.prisma.user.findUnique({
+      where: { username },
+      select: { id: true },
+    });
+    if (!target || target.id === viewerId) return { following: false };
+    const follow = await this.prisma.follow.findUnique({
+      where: { followerId_followingId: { followerId: viewerId, followingId: target.id } },
+    });
+    return { following: Boolean(follow) };
+  }
+
   async updateProfile(userId: number, dto: UpdateProfileDto) {
     const user = await this.prisma.user.update({
       where: { id: userId },

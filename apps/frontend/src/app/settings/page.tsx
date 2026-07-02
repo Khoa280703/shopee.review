@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { buttonClasses } from '@/components/ui/button-classes';
-import { uploadImage, usersApi } from '@/lib/api';
+import { authApi, uploadImage, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 export default function SettingsPage() {
@@ -21,6 +21,10 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [pwMessage, setPwMessage] = useState<string | null>(null);
+  const [changingPw, setChangingPw] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -54,6 +58,22 @@ export default function SettingsPage() {
       setMessage(err instanceof Error ? err.message : 'Lưu thất bại');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setChangingPw(true);
+    setPwMessage(null);
+    try {
+      await authApi.changePassword(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setPwMessage('Đã đổi mật khẩu. Các phiên đăng nhập khác đã bị đăng xuất.');
+    } catch (err) {
+      setPwMessage(err instanceof Error ? err.message : 'Đổi mật khẩu thất bại');
+    } finally {
+      setChangingPw(false);
     }
   }
 
@@ -109,6 +129,33 @@ export default function SettingsPage() {
 
         <Button type="submit" fullWidth size="lg" disabled={saving}>
           {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+        </Button>
+      </form>
+
+      <form onSubmit={changePassword} className="mt-10 space-y-4 rounded-xl border border-outline-variant p-4">
+        <h2 className="font-title-md text-title-md font-semibold text-on-surface">Đổi mật khẩu</h2>
+        <div>
+          <label className="mb-1 block text-body-sm font-medium text-on-surface">Mật khẩu hiện tại</label>
+          <Input
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-body-sm font-medium text-on-surface">Mật khẩu mới</label>
+          <Input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+          />
+        </div>
+        {pwMessage && <p className="text-body-sm text-tertiary">{pwMessage}</p>}
+        <Button type="submit" size="lg" disabled={changingPw || !currentPassword || newPassword.length < 8}>
+          {changingPw ? 'Đang đổi...' : 'Đổi mật khẩu'}
         </Button>
       </form>
 

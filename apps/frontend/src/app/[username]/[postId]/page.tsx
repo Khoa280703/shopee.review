@@ -83,7 +83,7 @@ export default async function PostDetailPage({
                 </p>
               </div>
             </Link>
-            <FollowButton username={post.user.username} initialFollowing={false} />
+            <FollowButton username={post.user.username} />
           </header>
 
           {/* Image gallery */}

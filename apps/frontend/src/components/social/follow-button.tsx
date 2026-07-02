@@ -8,7 +8,9 @@ import { cn } from '@/lib/cn';
 
 interface Props {
   username: string;
-  initialFollowing: boolean;
+  // Provided when the server already knows the state (profile page). Omitted on
+  // pages without server auth (post detail) → the button fetches it itself.
+  initialFollowing?: boolean;
   className?: string;
 }
 
@@ -17,14 +19,20 @@ export function FollowButton({ username, initialFollowing, className }: Props) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const key = ['followStatus', username];
+  const hasServerState = initialFollowing !== undefined;
 
-  // Seed follow state into the cache so optimistic updates have a home and
-  // multiple buttons for the same user stay in sync.
-  const { data: following = initialFollowing } = useQuery<boolean>({
+  // With a server-provided value: seed the cache and treat it as fresh forever.
+  // Without one: actually fetch (enabled only when logged in) — otherwise a
+  // hardcoded initialData + staleTime:Infinity would stop the query from ever
+  // running, leaving the button stuck on the wrong state.
+  const { data: following = false } = useQuery<boolean>({
     queryKey: key,
-    queryFn: () => Promise.resolve(initialFollowing),
-    initialData: initialFollowing,
-    staleTime: Infinity,
+    queryFn: hasServerState
+      ? () => Promise.resolve(initialFollowing as boolean)
+      : () => socialApi.followStatus(username).then((r) => r.following),
+    ...(hasServerState
+      ? { initialData: initialFollowing as boolean, staleTime: Infinity }
+      : { enabled: !!user, staleTime: 60_000 }),
   });
 
   const { mutate, isPending } = useMutation({

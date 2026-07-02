@@ -23,6 +23,7 @@ import type { GoogleProfile } from './strategies/google.strategy';
 
 const COOKIE_NAME = 'auth_token';
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 @Injectable()
 export class AuthService {
@@ -46,7 +47,18 @@ export class AuthService {
   }
 
   private sanitize(user: User): AuthUser {
-    const { passwordHash: _passwordHash, verifyToken: _verifyToken, ...rest } = user;
+    // Denylist: strip every internal/secret field. `isAdmin` is intentionally
+    // kept (client uses it to gate the /admin UI). Keep this in sync with
+    // JwtStrategy's `omit` — any new sensitive User column must be added here.
+    const {
+      passwordHash: _passwordHash,
+      verifyToken: _verifyToken,
+      verifyTokenExp: _verifyTokenExp,
+      resetToken: _resetToken,
+      resetTokenExp: _resetTokenExp,
+      tokenVersion: _tokenVersion,
+      ...rest
+    } = user;
     return rest;
   }
 
@@ -60,8 +72,15 @@ export class AuthService {
     return this.config.get('COOKIE_SECURE') === 'true';
   }
 
-  private setAuthCookie(res: Response, user: Pick<User, 'id' | 'username'>): void {
-    const token = this.jwt.sign({ sub: user.id, username: user.username });
+  private setAuthCookie(
+    res: Response,
+    user: Pick<User, 'id' | 'username' | 'tokenVersion'>,
+  ): void {
+    const token = this.jwt.sign({
+      sub: user.id,
+      username: user.username,
+      ver: user.tokenVersion,
+    });
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
       secure: this.cookieSecure,
@@ -101,6 +120,7 @@ export class AuthService {
         displayName: dto.displayName,
         emailVerified: false,
         verifyToken,
+        verifyTokenExp: new Date(Date.now() + VERIFY_TOKEN_TTL_MS),
       },
     });
 
@@ -109,18 +129,20 @@ export class AuthService {
     return this.sanitize(user);
   }
 
-  async validateUser(email: string, password: string): Promise<AuthUser | null> {
+  // Returns the FULL user row (not sanitized) so `login` can sign the token
+  // version into the cookie; the controller path sanitizes on the way out.
+  async validateUser(email: string, password: string): Promise<User | null> {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user?.passwordHash) {
       return null;
     }
     const valid = await bcrypt.compare(password, user.passwordHash);
-    return valid ? this.sanitize(user) : null;
+    return valid ? user : null;
   }
 
-  login(user: AuthUser, res: Response): AuthUser {
+  login(user: User, res: Response): AuthUser {
     this.setAuthCookie(res, user);
-    return user;
+    return this.sanitize(user);
   }
 
   async googleLogin(profile: GoogleProfile, res: Response): Promise<AuthUser> {
@@ -202,18 +224,73 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(password, 10);
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash, resetToken: null, resetTokenExp: null },
+      // Bump tokenVersion → every existing session (incl. a thief's) is revoked.
+      data: {
+        passwordHash,
+        resetToken: null,
+        resetTokenExp: null,
+        tokenVersion: { increment: 1 },
+      },
     });
+  }
+
+  /**
+   * Change password for a logged-in user. Requires the current password and
+   * bumps tokenVersion so all OTHER sessions are invalidated. Returns a freshly
+   * signed cookie so the current session stays logged in.
+   */
+  async changePassword(
+    userId: number,
+    currentPassword: string,
+    newPassword: string,
+    res: Response,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.passwordHash) {
+      throw new BadRequestException('Tài khoản không dùng mật khẩu');
+    }
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      throw new BadRequestException('Mật khẩu hiện tại không đúng');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, tokenVersion: { increment: 1 } },
+    });
+    // Re-issue this session's cookie at the new version so the user isn't logged out.
+    this.setAuthCookie(res, updated);
+  }
+
+  /**
+   * Re-send the verification email. Silent success for unknown/already-verified
+   * emails (no enumeration). Does NOT regenerate a still-valid token (prevents an
+   * attacker invalidating the victim's existing link); only refreshes if expired.
+   */
+  async resendVerification(email: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || user.emailVerified) return;
+
+    let token = user.verifyToken;
+    const expired = !user.verifyTokenExp || user.verifyTokenExp < new Date();
+    if (!token || expired) {
+      token = randomBytes(32).toString('hex');
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { verifyToken: token, verifyTokenExp: new Date(Date.now() + VERIFY_TOKEN_TTL_MS) },
+      });
+    }
+    await this.dispatchVerificationEmail(user.email, token);
   }
 
   async verifyEmail(token: string): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { verifyToken: token } });
-    if (!user) {
+    if (!user || !user.verifyTokenExp || user.verifyTokenExp < new Date()) {
       throw new NotFoundException('Token xác minh không hợp lệ hoặc đã hết hạn');
     }
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { emailVerified: true, verifyToken: null },
+      data: { emailVerified: true, verifyToken: null, verifyTokenExp: null },
     });
   }
 }
