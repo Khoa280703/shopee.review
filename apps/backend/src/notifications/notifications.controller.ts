@@ -1,4 +1,15 @@
-import { Controller, Get, Header, type MessageEvent, Patch, Sse, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  type MessageEvent,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Query,
+  Sse,
+  UseGuards,
+} from '@nestjs/common';
 import type { Observable } from 'rxjs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
@@ -10,8 +21,8 @@ export class NotificationsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  list(@CurrentUser() user: AuthUser) {
-    return this.notificationsService.list(user.id);
+  list(@CurrentUser() user: AuthUser, @Query('cursor') cursor?: string) {
+    return this.notificationsService.list(user.id, cursor ? Number(cursor) : undefined);
   }
 
   @Get('unread-count')
@@ -24,6 +35,12 @@ export class NotificationsController {
   @UseGuards(JwtAuthGuard)
   markAllRead(@CurrentUser() user: AuthUser) {
     return this.notificationsService.markAllRead(user.id);
+  }
+
+  @Patch(':id/read')
+  @UseGuards(JwtAuthGuard)
+  markRead(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return this.notificationsService.markRead(user.id, id);
   }
 
   // X-Accel-Buffering:no tells nginx not to buffer this response, so SSE events

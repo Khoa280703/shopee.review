@@ -142,6 +142,8 @@ model ClickLog {
 
   @@index([postId])
   @@index([createdAt])
+  // Serves the 1h/IP dedup lookup (postId + ip + createdAt window) index-only.
+  @@index([postId, ip, createdAt])
   @@map("click_logs")
 }
 

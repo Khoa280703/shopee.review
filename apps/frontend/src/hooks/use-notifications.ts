@@ -10,15 +10,24 @@ export function useNotifications() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     if (!user) {
       setNotifications([]);
       setUnreadCount(0);
+      setNextCursor(null);
       return;
     }
 
-    notificationsApi.list().then(setNotifications).catch(() => undefined);
+    notificationsApi
+      .list()
+      .then((page) => {
+        setNotifications(page.data);
+        setNextCursor(page.nextCursor);
+      })
+      .catch(() => undefined);
     notificationsApi
       .unreadCount()
       .then((r) => setUnreadCount(r.count))
@@ -79,5 +88,24 @@ export function useNotifications() {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   }, []);
 
-  return { notifications, unreadCount, markAllRead };
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await notificationsApi.list(nextCursor);
+      setNotifications((prev) => [...prev, ...page.data]);
+      setNextCursor(page.nextCursor);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore]);
+
+  return {
+    notifications,
+    unreadCount,
+    markAllRead,
+    loadMore,
+    hasMore: nextCursor !== null,
+    loadingMore,
+  };
 }

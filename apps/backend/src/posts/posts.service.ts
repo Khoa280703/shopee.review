@@ -190,9 +190,14 @@ export class PostsService {
   }
 
   private async queryExplore(offset: number, limit: number, categoryId?: number) {
+    // Bound the scan to the last 30 days (same window as the trending MV). The
+    // scoring formula already zeroes recency bonuses after 7 days, so older
+    // posts only ranked by raw counters — dropping them keeps "explore" fresh
+    // and makes cost independent of total table size (uses created_at index).
+    const recent = Prisma.sql`p.created_at > NOW() - INTERVAL '30 days'`;
     const whereClause = categoryId
-      ? Prisma.sql`WHERE p.category_id = ${categoryId}`
-      : Prisma.sql``;
+      ? Prisma.sql`WHERE p.category_id = ${categoryId} AND ${recent}`
+      : Prisma.sql`WHERE ${recent}`;
 
     const rows = await this.prisma.$queryRaw<RawPostRow[]>`
       SELECT

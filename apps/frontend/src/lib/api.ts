@@ -193,9 +193,14 @@ export const feedApi = {
 
 // ---------- Notifications ----------
 export const notificationsApi = {
-  list: () => apiFetch<AppNotification[]>('/notifications'),
+  list: (cursor?: number) =>
+    apiFetch<CursorPage<AppNotification>>(
+      `/notifications${cursor ? `?cursor=${cursor}` : ''}`,
+    ),
   unreadCount: () => apiFetch<{ count: number }>('/notifications/unread-count'),
   markAllRead: () => apiFetch<{ success: boolean }>('/notifications/read-all', { method: 'PATCH' }),
+  markRead: (id: number) =>
+    apiFetch<{ success: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' }),
 };
 
 // ---------- Categories ----------

@@ -32,7 +32,8 @@ function meta(type: NotificationType): { icon: string; bg: string; fg: string; t
 }
 
 export default function NotificationsPage() {
-  const { notifications, unreadCount, markAllRead } = useNotifications();
+  const { notifications, unreadCount, markAllRead, loadMore, hasMore, loadingMore } =
+    useNotifications();
   const [tab, setTab] = useState<'all' | NotificationType>('all');
 
   useEffect(() => {
@@ -112,6 +113,15 @@ export default function NotificationsPage() {
                 </Link>
               );
             })
+          )}
+          {tab === 'all' && hasMore && (
+            <button
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+              className="mx-4 mt-md rounded-full border border-outline-variant py-sm font-label-caps text-label-caps text-on-surface transition-colors hover:bg-surface-container disabled:opacity-60 sm:mx-0"
+            >
+              {loadingMore ? 'Đang tải...' : 'Xem thêm'}
+            </button>
           )}
         </div>
       </div>

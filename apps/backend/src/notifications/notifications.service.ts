@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  NotFoundException,
   Optional,
   type MessageEvent,
   type OnModuleDestroy,
@@ -184,13 +185,29 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     return merge(subject.asObservable(), heartbeat);
   }
 
-  list(userId: number, limit = 30) {
-    return this.prisma.notification.findMany({
+  async list(userId: number, cursor?: number, limit = 30) {
+    const notifications = await this.prisma.notification.findMany({
       where: { recipientId: userId },
       include: NOTIFICATION_INCLUDE,
       orderBy: { id: 'desc' },
-      take: limit,
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
+    const hasMore = notifications.length > limit;
+    const data = hasMore ? notifications.slice(0, limit) : notifications;
+    return { data, nextCursor: hasMore ? data[data.length - 1].id : null };
+  }
+
+  /** Mark a single notification read (ownership-checked). */
+  async markRead(userId: number, id: number) {
+    const result = await this.prisma.notification.updateMany({
+      where: { id, recipientId: userId },
+      data: { read: true },
+    });
+    if (result.count === 0) {
+      throw new NotFoundException('Không tìm thấy thông báo');
+    }
+    return { success: true };
   }
 
   async unreadCount(userId: number) {
