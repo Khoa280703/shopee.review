@@ -7,3 +7,11 @@ coverage/
 .env.*
 !.env.example
 uploads/
+
+# DB backups (may contain user data) and TLS private keys — never commit.
+backups/*
+!backups/.gitkeep
+nginx/certbot/conf/*
+!nginx/certbot/conf/.gitkeep
+nginx/certbot/www/*
+!nginx/certbot/www/.gitkeep
