@@ -68,6 +68,16 @@ export const authApi = {
   me: () => apiFetch<AuthUser>('/auth/me'),
   verify: (token: string) =>
     apiFetch<{ success: boolean }>(`/auth/verify?token=${encodeURIComponent(token)}`),
+  forgotPassword: (email: string) =>
+    apiFetch<{ success: boolean }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (token: string, password: string) =>
+    apiFetch<{ success: boolean }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
   googleUrl: () => `${API_URL}/auth/google`,
 };
 
@@ -78,12 +88,39 @@ export const postsApi = {
     Object.entries(params).forEach(([k, v]) => v !== undefined && sp.set(k, String(v)));
     return apiFetch<CursorPage<Post>>(`/posts?${sp}`, { isServer, revalidate: isServer ? 30 : undefined });
   },
+  explore: (offset = 0, categoryId?: number, isServer = false) => {
+    const sp = new URLSearchParams({ offset: String(offset), limit: '20' });
+    if (categoryId) sp.set('categoryId', String(categoryId));
+    return apiFetch<CursorPage<Post>>(`/posts/explore?${sp}`, { isServer, revalidate: isServer ? 30 : undefined });
+  },
   trending: (isServer = false) =>
     apiFetch<Post[]>('/posts/trending', { isServer, revalidate: isServer ? 60 : undefined }),
   get: (id: number, isServer = false) =>
     apiFetch<Post>(`/posts/${id}`, { isServer, revalidate: isServer ? 30 : undefined }),
-  scrape: (url: string) =>
-    apiFetch<ScrapedProduct>('/posts/scrape', { method: 'POST', body: JSON.stringify({ url }) }),
+  // Backend may respond synchronously (ScrapedProduct) or async ({ jobId }).
+  // When async (queue enabled), poll the status endpoint until completion.
+  scrape: async (url: string): Promise<ScrapedProduct> => {
+    const res = await apiFetch<ScrapedProduct | { jobId: string }>('/posts/scrape', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+    if (!('jobId' in res)) return res;
+
+    const jobId = res.jobId;
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const status = await apiFetch<{
+        status: string;
+        data?: ScrapedProduct;
+        error?: string;
+      }>(`/posts/scrape/${jobId}`);
+      if (status.status === 'completed' && status.data) return status.data;
+      if (status.status === 'failed') {
+        throw new Error(status.error || 'Không lấy được thông tin sản phẩm');
+      }
+    }
+    throw new Error('Quá thời gian chờ lấy thông tin sản phẩm');
+  },
   create: (data: Partial<Post>) =>
     apiFetch<Post>('/posts', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: Partial<Post>) =>
@@ -95,13 +132,17 @@ export const postsApi = {
 export const usersApi = {
   profile: (username: string, isServer = false) =>
     apiFetch<UserProfile>(`/users/${username}`, { isServer }),
-  posts: (username: string, cursor?: number, isServer = false) =>
-    apiFetch<CursorPage<Post>>(`/users/${username}/posts${cursor ? `?cursor=${cursor}` : ''}`, {
-      isServer,
-    }),
+  posts: (username: string, cursor?: number, isServer = false, hasProduct?: boolean) => {
+    const params = new URLSearchParams();
+    if (cursor) params.set('cursor', String(cursor));
+    if (hasProduct) params.set('hasProduct', 'true');
+    const qs = params.toString();
+    return apiFetch<CursorPage<Post>>(`/users/${username}/posts${qs ? `?${qs}` : ''}`, { isServer });
+  },
   updateMe: (data: { displayName?: string; bio?: string; avatarUrl?: string; affiliateId?: string }) =>
     apiFetch<AuthUser>('/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
   stats: () => apiFetch<UserStats>('/users/me/stats'),
+  deleteAccount: () => apiFetch<{ success: boolean }>('/users/me', { method: 'DELETE' }),
 };
 
 // ---------- Social ----------
@@ -120,6 +161,10 @@ export const socialApi = {
     apiFetch<CursorPage<Comment>>(`/posts/${postId}/comments${cursor ? `?cursor=${cursor}` : ''}`, {
       isServer,
     }),
+  replies: (postId: number, parentId: number, cursor?: number) =>
+    apiFetch<CursorPage<Comment>>(
+      `/posts/${postId}/comments/${parentId}/replies${cursor ? `?cursor=${cursor}` : ''}`,
+    ),
   addComment: (postId: number, content: string, parentId?: number) =>
     apiFetch<Comment>(`/posts/${postId}/comments`, {
       method: 'POST',

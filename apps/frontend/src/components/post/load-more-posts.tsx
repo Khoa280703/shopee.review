@@ -1,56 +1,71 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { feedApi, postsApi, usersApi } from '@/lib/api';
-import { PostGrid } from './post-grid';
+import { PostFeed, PostGrid } from './post-grid';
 import type { CursorPage, Post } from '@/types';
 
 type Source =
-  | { type: 'posts'; categoryId?: number; search?: string }
-  | { type: 'user'; username: string }
+  | { type: 'explore'; categoryId?: number } // scored feed: home page
+  | { type: 'posts'; categoryId?: number; search?: string } // plain list
+  | { type: 'user'; username: string; hasProduct?: boolean }
   | { type: 'feed' };
 
 interface Props {
   initial: CursorPage<Post>;
   source: Source;
+  variant?: 'feed' | 'grid'; // feed = single column social style, grid = profile grid
 }
 
-export function LoadMorePosts({ initial, source }: Props) {
-  const [posts, setPosts] = useState<Post[]>(initial.data);
-  const [cursor, setCursor] = useState<number | null>(initial.nextCursor);
-  const [loading, setLoading] = useState(false);
+function fetchPage(source: Source, cursor?: number): Promise<CursorPage<Post>> {
+  if (source.type === 'explore') return postsApi.explore(cursor, source.categoryId);
+  if (source.type === 'user')
+    return usersApi.posts(source.username, cursor, false, source.hasProduct);
+  if (source.type === 'feed') return feedApi.get(cursor);
+  return postsApi.list({ cursor, categoryId: source.categoryId, search: source.search });
+}
 
-  async function loadMore() {
-    if (cursor === null || loading) return;
-    setLoading(true);
-    try {
-      let page: CursorPage<Post>;
-      if (source.type === 'user') {
-        page = await usersApi.posts(source.username, cursor);
-      } else if (source.type === 'feed') {
-        page = await feedApi.get(cursor);
-      } else {
-        page = await postsApi.list({ cursor, categoryId: source.categoryId, search: source.search });
-      }
-      setPosts((prev) => [...prev, ...page.data]);
-      setCursor(page.nextCursor);
-    } finally {
-      setLoading(false);
-    }
-  }
+export function LoadMorePosts({ initial, source, variant = 'feed' }: Props) {
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['posts', source],
+    queryFn: ({ pageParam }) => fetchPage(source, pageParam),
+    initialPageParam: undefined as number | undefined,
+    // Hydrate page 1 from the server-rendered data (no double fetch / flash).
+    initialData: { pages: [initial], pageParams: [undefined as number | undefined] },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+
+  const posts = data.pages.flatMap((p) => p.data);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage();
+        }
+      },
+      { rootMargin: '600px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
-    <div className="space-y-6">
-      <PostGrid posts={posts} />
-      {cursor !== null && (
-        <div className="flex justify-center">
-          <button
-            onClick={loadMore}
-            disabled={loading}
-            className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-6 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
-          >
-            {loading ? 'Đang tải...' : 'Xem thêm'}
-          </button>
+    <div>
+      {variant === 'feed' ? <PostFeed posts={posts} /> : <PostGrid posts={posts} />}
+      {hasNextPage && (
+        <div ref={sentinelRef} className="flex justify-center py-4 text-body-sm text-on-surface-variant">
+          {isFetchingNextPage ? 'Đang tải...' : ''}
         </div>
       )}
     </div>

@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { categoriesApi, postsApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import type { Category, ProductMeta, ScrapedProduct } from '@/types';
 import { ImageUploader } from './image-uploader';
 import { ShopeeUrlInput } from './shopee-url-input';
@@ -76,18 +79,18 @@ export function PostForm() {
   return (
     <form onSubmit={submit} className="space-y-6">
       {user && !user.emailVerified && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        <div className="rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-body-sm text-warning-on">
           Bạn cần xác minh email trước khi đăng bài. Kiểm tra hộp thư của bạn.
         </div>
       )}
 
       <div>
-        <label className="mb-2 block text-sm font-medium">🔗 Link sản phẩm Shopee</label>
+        <label className="mb-2 block text-body-sm font-medium">🔗 Link sản phẩm Shopee</label>
         <ShopeeUrlInput value={productUrl} onChange={setProductUrl} onScraped={applyScraped} />
       </div>
 
       {productMeta && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+        <div className="rounded-lg border border-outline-variant bg-surface-container-low p-3 text-body-sm text-on-surface-variant">
           {productMeta.shopName && <p>Shop: {productMeta.shopName}</p>}
           {productMeta.salePrice != null && (
             <p>
@@ -99,52 +102,49 @@ export function PostForm() {
       )}
 
       <div>
-        <label className="mb-2 block text-sm font-medium">📸 Ảnh sản phẩm</label>
+        <label className="mb-2 block text-body-sm font-medium">📸 Ảnh sản phẩm</label>
         <ImageUploader images={images} onChange={setImages} />
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium">📝 Tiêu đề bài review</label>
-        <input
+        <label className="mb-2 block text-body-sm font-medium">📝 Tiêu đề bài review</label>
+        <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={200}
-          className="h-11 w-full rounded-lg border border-slate-300 px-4 text-sm outline-none focus:border-orange-500"
           placeholder="Ví dụ: Đánh giá tai nghe XYZ sau 1 tháng dùng"
         />
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium">💭 Nội dung review</label>
-        <textarea
+        <label className="mb-2 block text-body-sm font-medium">💭 Nội dung review</label>
+        <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={6}
           maxLength={5000}
-          className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none focus:border-orange-500"
           placeholder="Chia sẻ trải nghiệm thật của bạn..."
         />
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium">🏷️ Link affiliate của bạn</label>
-        <input
+        <label className="mb-2 block text-body-sm font-medium">🏷️ Link affiliate của bạn</label>
+        <Input
           value={affiliateUrl}
           onChange={(e) => setAffiliateUrl(e.target.value)}
-          className="h-11 w-full rounded-lg border border-slate-300 px-4 text-sm outline-none focus:border-orange-500"
           placeholder="Dán link affiliate Shopee của bạn"
         />
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-label-caps text-on-surface-variant">
           Đăng ký Shopee Affiliate tại affiliate.shopee.vn để lấy link kiếm hoa hồng.
         </p>
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium">📁 Danh mục</label>
+        <label className="mb-2 block text-body-sm font-medium">📁 Danh mục</label>
         <select
           value={categoryId ?? ''}
           onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
-          className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-orange-500"
+          className="h-11 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
         >
           <option value="">-- Chọn danh mục --</option>
           {categories.map((c) => (
@@ -155,23 +155,15 @@ export function PostForm() {
         </select>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-body-sm text-error">{error}</p>}
 
       <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="h-11 rounded-lg border border-slate-300 px-5 text-sm font-medium hover:bg-slate-50"
-        >
+        <Button variant="outline" size="lg" type="button" onClick={() => router.back()}>
           Hủy
-        </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="h-11 flex-1 rounded-lg bg-orange-500 px-5 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-60"
-        >
-          {submitting ? 'Đang đăng...' : 'Đăng bài →'}
-        </button>
+        </Button>
+        <Button type="submit" size="lg" disabled={submitting} className="flex-1">
+          {submitting ? 'Đang đăng...' : 'Đăng bài'}
+        </Button>
       </div>
     </form>
   );

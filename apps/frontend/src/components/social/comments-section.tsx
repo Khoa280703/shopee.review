@@ -4,26 +4,37 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/ui/avatar';
+import { Icon } from '@/components/ui/icon';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { socialApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { timeAgo } from '@/lib/format';
 import type { Comment } from '@/types';
+import { useCommentSocket } from './use-comment-socket';
 
 function CommentItem({
   comment,
   onReply,
   onDelete,
+  onLoadMoreReplies,
   currentUserId,
   isReply = false,
 }: {
   comment: Comment;
   onReply: (parentId: number, content: string) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  onLoadMoreReplies?: (parentId: number) => Promise<void>;
   currentUserId?: number;
   isReply?: boolean;
 }) {
   const [replying, setReplying] = useState(false);
   const [text, setText] = useState('');
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const shownReplies = comment.replies?.length ?? 0;
+  const totalReplies = comment.replyCount ?? shownReplies;
+  const remainingReplies = totalReplies - shownReplies;
 
   async function submitReply() {
     if (!text.trim()) return;
@@ -32,46 +43,55 @@ function CommentItem({
     setReplying(false);
   }
 
+  async function loadMore() {
+    if (!onLoadMoreReplies) return;
+    setLoadingMore(true);
+    try {
+      await onLoadMoreReplies(comment.id);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   return (
-    <div className={isReply ? 'ml-10' : ''}>
-      <div className="flex gap-2">
-        <Avatar src={comment.user.avatarUrl} name={comment.user.displayName} size={32} />
+    <div className={isReply ? 'ml-12' : ''}>
+      <div className="flex gap-md">
+        <Avatar src={comment.user.avatarUrl} name={comment.user.displayName} size={isReply ? 32 : 40} />
         <div className="flex-1">
-          <div className="rounded-2xl bg-slate-100 px-3 py-2">
-            <Link href={`/${comment.user.username}`} className="text-sm font-semibold hover:underline">
+          <div className="flex items-center gap-sm">
+            <Link href={`/${comment.user.username}`} className="font-headline-md text-body-sm font-semibold text-on-surface hover:underline">
               {comment.user.displayName}
             </Link>
-            <p className="whitespace-pre-wrap text-sm text-slate-700">{comment.content}</p>
+            <span className="font-body-sm text-label-caps text-on-surface-variant">
+              @{comment.user.username} • {timeAgo(comment.createdAt)}
+            </span>
           </div>
-          <div className="mt-1 flex gap-3 px-3 text-xs text-slate-400">
-            <span>{timeAgo(comment.createdAt)}</span>
+          <p className="mt-1 whitespace-pre-wrap font-body-md text-body-sm text-on-surface">{comment.content}</p>
+          <div className="mt-1 flex gap-lg text-on-surface-variant">
             {!isReply && (
-              <button onClick={() => setReplying((v) => !v)} className="hover:text-orange-600">
-                Trả lời
+              <button onClick={() => setReplying((v) => !v)} className="flex items-center gap-xs text-label-caps hover:text-tertiary">
+                <Icon name="chat_bubble" className="text-[14px]" /> Trả lời
               </button>
             )}
             {currentUserId === comment.userId && (
-              <button onClick={() => onDelete(comment.id)} className="hover:text-red-600">
-                Xóa
+              <button onClick={() => onDelete(comment.id)} className="flex items-center gap-xs text-label-caps hover:text-error">
+                <Icon name="delete" className="text-[14px]" /> Xóa
               </button>
             )}
           </div>
 
           {replying && (
             <div className="mt-2 flex gap-2">
-              <input
+              <Input
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && submitReply()}
                 placeholder="Viết trả lời..."
-                className="h-9 flex-1 rounded-full border border-slate-300 px-3 text-sm outline-none focus:border-orange-500"
+                className="h-9 flex-1 rounded-full px-3"
               />
-              <button
-                onClick={submitReply}
-                className="rounded-full bg-orange-500 px-4 text-sm font-medium text-white"
-              >
+              <Button size="sm" onClick={submitReply}>
                 Gửi
-              </button>
+              </Button>
             </div>
           )}
 
@@ -86,6 +106,17 @@ function CommentItem({
               />
             </div>
           ))}
+
+          {!isReply && remainingReplies > 0 && (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="mt-3 flex items-center gap-xs text-label-caps text-tertiary hover:underline disabled:opacity-60"
+            >
+              <Icon name="subdirectory_arrow_right" className="text-[14px]" />
+              {loadingMore ? 'Đang tải...' : `Xem thêm ${remainingReplies} trả lời`}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -107,6 +138,8 @@ export function CommentsSection({ postId }: { postId: number }) {
       .finally(() => setLoading(false));
   }, [postId]);
 
+  useCommentSocket(postId, setComments);
+
   async function addTopComment() {
     if (!user) {
       router.push('/auth/login');
@@ -126,8 +159,30 @@ export function CommentsSection({ postId }: { postId: number }) {
     const created = await socialApi.addComment(postId, content, parentId);
     setComments((prev) =>
       prev.map((c) =>
-        c.id === parentId ? { ...c, replies: [...(c.replies ?? []), created] } : c,
+        c.id === parentId
+          ? {
+              ...c,
+              replies: [...(c.replies ?? []), created],
+              replyCount: (c.replyCount ?? c.replies?.length ?? 0) + 1,
+            }
+          : c,
       ),
+    );
+  }
+
+  async function loadMoreReplies(parentId: number) {
+    const parent = comments.find((c) => c.id === parentId);
+    const loaded = parent?.replies ?? [];
+    const cursor = loaded.length ? loaded[loaded.length - 1].id : undefined;
+    const page = await socialApi.replies(postId, parentId, cursor);
+    setComments((prev) =>
+      prev.map((c) => {
+        if (c.id !== parentId) return c;
+        const existing = c.replies ?? [];
+        const seen = new Set(existing.map((r) => r.id));
+        const merged = [...existing, ...page.data.filter((r) => !seen.has(r.id))];
+        return { ...c, replies: merged };
+      }),
     );
   }
 
@@ -141,36 +196,34 @@ export function CommentsSection({ postId }: { postId: number }) {
   }
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-lg font-semibold">Bình luận</h2>
+    <section id="comments" className="space-y-4">
+      <h2 className="border-b border-outline-variant pb-sm font-headline-md text-headline-md text-on-surface">
+        Bình luận
+      </h2>
       <div className="flex gap-2">
-        <input
+        <Input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && addTopComment()}
           placeholder={user ? 'Viết bình luận...' : 'Đăng nhập để bình luận'}
-          className="h-10 flex-1 rounded-full border border-slate-300 px-4 text-sm outline-none focus:border-orange-500"
+          className="flex-1 rounded-full"
         />
-        <button
-          onClick={addTopComment}
-          className="rounded-full bg-orange-500 px-5 text-sm font-medium text-white hover:bg-orange-600"
-        >
-          Gửi
-        </button>
+        <Button onClick={addTopComment}>Gửi</Button>
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-400">Đang tải bình luận...</p>
+        <p className="text-body-sm text-on-surface-variant">Đang tải bình luận...</p>
       ) : comments.length === 0 ? (
-        <p className="text-sm text-slate-400">Chưa có bình luận nào. Hãy là người đầu tiên!</p>
+        <p className="text-body-sm text-on-surface-variant">Chưa có bình luận nào. Hãy là người đầu tiên!</p>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {comments.map((comment) => (
             <CommentItem
               key={comment.id}
               comment={comment}
               onReply={reply}
               onDelete={remove}
+              onLoadMoreReplies={loadMoreReplies}
               currentUserId={user?.id}
             />
           ))}

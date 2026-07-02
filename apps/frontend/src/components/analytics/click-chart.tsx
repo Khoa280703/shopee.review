@@ -6,7 +6,7 @@ export function ClickChart({ chart }: { chart: ClickChartData }) {
   const max = Math.max(1, ...chart.data.map((d) => d.clicks));
 
   if (chart.data.length === 0) {
-    return <p className="py-8 text-center text-sm text-slate-400">Chưa có dữ liệu click.</p>;
+    return <p className="py-8 text-center text-sm text-on-surface-variant">Chưa có dữ liệu click.</p>;
   }
 
   return (
@@ -15,12 +15,12 @@ export function ClickChart({ chart }: { chart: ClickChartData }) {
         <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
           <div className="flex w-full flex-1 items-end">
             <div
-              className="w-full rounded-t bg-orange-400"
+              className="w-full rounded-t bg-primary"
               style={{ height: `${(d.clicks / max) * 100}%` }}
               title={`${d.clicks} clicks`}
             />
           </div>
-          <span className="text-[10px] text-slate-400">{d.date.slice(5)}</span>
+          <span className="text-[10px] text-on-surface-variant">{d.date.slice(5)}</span>
         </div>
       ))}
     </div>

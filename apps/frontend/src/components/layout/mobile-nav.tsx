@@ -1,8 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, PlusCircle, Rss, Search, User } from 'lucide-react';
+import { Icon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { useAuth } from '@/lib/auth-context';
 
@@ -12,16 +11,16 @@ export function MobileNav() {
   const { user } = useAuth();
 
   const items = [
-    { href: '/', icon: Home, label: 'Trang chủ' },
-    { href: '/search', icon: Search, label: 'Tìm kiếm' },
-    { href: '/create', icon: PlusCircle, label: 'Đăng', auth: true },
-    { href: '/feed', icon: Rss, label: 'Bảng tin', auth: true },
-    { href: user ? `/${user.username}` : '/auth/login', icon: User, label: 'Cá nhân' },
+    { href: '/', icon: 'home', label: 'Trang chủ' },
+    { href: '/search', icon: 'search', label: 'Tìm kiếm' },
+    { href: '/create', icon: 'add_circle', label: 'Đăng', auth: true },
+    { href: '/notifications', icon: 'notifications', label: 'Thông báo', auth: true },
+    { href: user ? `/${user.username}` : '/auth/login', icon: 'person', label: 'Cá nhân' },
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white sm:hidden">
-      <div className="flex h-14 items-center justify-around">
+    <nav className="pb-safe fixed bottom-0 left-0 right-0 z-30 border-t border-outline-variant bg-surface/90 shadow-lg backdrop-blur-md lg:hidden">
+      <div className="flex h-16 items-center justify-around px-2">
         {items.map((item) => {
           const active = pathname === item.href;
           return (
@@ -35,12 +34,14 @@ export function MobileNav() {
                 router.push(item.href);
               }}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-3 text-xs',
-                active ? 'text-orange-500' : 'text-slate-500',
+                'flex scale-110 flex-col items-center justify-center font-medium transition-transform duration-150 active:scale-100',
+                active
+                  ? 'rounded-full bg-primary-fixed/30 px-4 py-1 font-bold text-primary'
+                  : 'px-3 text-on-surface-variant',
               )}
             >
-              <item.icon size={20} />
-              {item.label}
+              <Icon name={item.icon} fill={active} className="text-[24px]" />
+              <span className="font-label-caps text-label-caps">{item.label}</span>
             </button>
           );
         })}

@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
 import { postsApi } from '@/lib/api';
+import { Input } from '@/components/ui/input';
 import type { ScrapedProduct } from '@/types';
 
 interface Props {
@@ -38,20 +39,20 @@ export function ShopeeUrlInput({ value, onChange, onScraped }: Props) {
   return (
     <div>
       <div className="relative">
-        <input
+        <Input
           value={value}
           onChange={(e) => {
             onChange(e.target.value);
             scheduleScrape(e.target.value);
           }}
           placeholder="Dán link sản phẩm Shopee..."
-          className="h-11 w-full rounded-lg border border-slate-300 pl-4 pr-11 text-sm outline-none focus:border-orange-500"
+          className="pl-4 pr-11"
         />
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">
           {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
         </span>
       </div>
-      {error && <p className="mt-1 text-sm text-amber-600">{error}</p>}
+      {error && <p className="mt-1 text-body-sm text-warning-on">{error}</p>}
     </div>
   );
 }

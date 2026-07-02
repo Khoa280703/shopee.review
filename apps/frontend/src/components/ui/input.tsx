@@ -4,7 +4,7 @@ import type { InputHTMLAttributes } from 'react';
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={cn('h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500', className)}
+      className={cn('h-11 w-full rounded-lg border border-outline-variant bg-surface-container-low px-4 text-body-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary', className)}
       {...props}
     />
   );

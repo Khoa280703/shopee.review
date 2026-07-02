@@ -81,9 +81,10 @@ export interface Comment {
   createdAt: string;
   user: UserSummary;
   replies?: Comment[];
+  replyCount?: number;
 }
 
-export type NotificationType = 'LIKE' | 'COMMENT' | 'FOLLOW' | 'MENTION';
+export type NotificationType = 'LIKE' | 'COMMENT' | 'FOLLOW' | 'MENTION' | 'NEW_POST';
 
 export interface AppNotification {
   id: number;

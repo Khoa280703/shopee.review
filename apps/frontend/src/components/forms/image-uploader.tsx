@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Image from 'next/image';
 import { ImagePlus, X } from 'lucide-react';
 import { uploadImage } from '@/lib/api';
 import { resolveAssetUrl } from '@/lib/constants';
@@ -40,9 +41,14 @@ export function ImageUploader({ images, onChange, max = 10 }: Props) {
     <div>
       <div className="flex flex-wrap gap-3">
         {images.map((url) => (
-          <div key={url} className="relative h-24 w-24 overflow-hidden rounded-lg border border-slate-200">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={resolveAssetUrl(url)} alt="" className="h-full w-full object-cover" />
+          <div key={url} className="relative h-24 w-24 overflow-hidden rounded-lg border border-outline-variant">
+            <Image
+              src={resolveAssetUrl(url) ?? ''}
+              alt=""
+              fill
+              sizes="96px"
+              className="object-cover"
+            />
             <button
               type="button"
               onClick={() => onChange(images.filter((i) => i !== url))}
@@ -58,10 +64,10 @@ export function ImageUploader({ images, onChange, max = 10 }: Props) {
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            className="flex h-24 w-24 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 text-slate-400 hover:border-orange-400 hover:text-orange-500 disabled:opacity-60"
+            className="flex h-24 w-24 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-outline-variant text-on-surface-variant transition hover:border-primary hover:text-primary disabled:opacity-60"
           >
             <ImagePlus size={20} />
-            <span className="text-xs">{uploading ? 'Đang tải...' : 'Thêm ảnh'}</span>
+            <span className="text-label-caps">{uploading ? 'Đang tải...' : 'Thêm ảnh'}</span>
           </button>
         )}
       </div>
@@ -73,7 +79,7 @@ export function ImageUploader({ images, onChange, max = 10 }: Props) {
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
       />
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-body-sm text-error">{error}</p>}
     </div>
   );
 }

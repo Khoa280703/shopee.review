@@ -15,10 +15,10 @@ export function CategoryPills({ categories, activeSlug }: Props) {
       <Link
         href="/"
         className={cn(
-          'whitespace-nowrap rounded-full border px-4 py-1.5 text-sm transition',
+          'whitespace-nowrap rounded-full border px-4 py-1.5 text-body-sm font-medium transition',
           !activeSlug
-            ? 'border-orange-500 bg-orange-500 text-white'
-            : 'border-slate-200 bg-white text-slate-700 hover:border-orange-300',
+            ? 'border-primary bg-primary text-on-primary'
+            : 'border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high',
         )}
       >
         Tất cả
@@ -28,10 +28,10 @@ export function CategoryPills({ categories, activeSlug }: Props) {
           key={c.id}
           href={`/category/${c.slug}`}
           className={cn(
-            'whitespace-nowrap rounded-full border px-4 py-1.5 text-sm transition',
+            'whitespace-nowrap rounded-full border px-4 py-1.5 text-body-sm font-medium transition',
             activeSlug === c.slug
-              ? 'border-orange-500 bg-orange-500 text-white'
-              : 'border-slate-200 bg-white text-slate-700 hover:border-orange-300',
+              ? 'border-primary bg-primary text-on-primary'
+              : 'border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high',
           )}
         >
           {c.icon} {c.name}

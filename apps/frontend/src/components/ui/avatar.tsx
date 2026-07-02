@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { cn } from '@/lib/cn';
 import { resolveAssetUrl } from '@/lib/constants';
 
@@ -15,14 +16,19 @@ export function Avatar({ src, name, size = 40, className }: AvatarProps) {
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-orange-100 font-semibold text-orange-600',
+        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container font-semibold text-on-surface-variant',
         className,
       )}
       style={{ width: size, height: size, fontSize: size * 0.42 }}
     >
       {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={name} className="h-full w-full object-cover" />
+        <Image
+          src={url}
+          alt={name}
+          width={size}
+          height={size}
+          className="h-full w-full object-cover"
+        />
       ) : (
         initial
       )}
