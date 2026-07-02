@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   Param,
   ParseIntPipe,
@@ -26,7 +27,12 @@ export class PostsMeController {
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 20, ttl: 60 * 60 * 1000 } })
   scrape(@Body() dto: ScrapeUrlDto) {
-    return this.postsService.scrapeUrl(dto.url);
+    return this.postsService.requestScrape(dto.url);
+  }
+
+  @Get('scrape/:jobId')
+  getScrapeResult(@Param('jobId') jobId: string) {
+    return this.postsService.getScrapeResult(jobId);
   }
 
   @Post()

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -48,14 +49,17 @@ export class UsersService {
     return user;
   }
 
-  async getUserPosts(username: string, cursor?: number, limit = 20) {
+  async getUserPosts(username: string, cursor?: number, limit = 20, hasProduct = false) {
     const user = await this.prisma.user.findUnique({ where: { username }, select: { id: true } });
     if (!user) {
       throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     const posts = await this.prisma.post.findMany({
-      where: { userId: user.id },
+      where: {
+        userId: user.id,
+        ...(hasProduct ? { productMeta: { not: Prisma.DbNull } } : {}),
+      },
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       orderBy: { id: 'desc' },
@@ -84,6 +88,13 @@ export class UsersService {
       select: PUBLIC_PROFILE_SELECT,
       take: limit,
     });
+  }
+
+  async deleteAccount(userId: number): Promise<{ success: boolean }> {
+    // All relations (posts, likes, comments, follows, notifications) are
+    // onDelete: Cascade, so a single delete tears down the user's data (GDPR).
+    await this.prisma.user.delete({ where: { id: userId } });
+    return { success: true };
   }
 
   async getUserStats(userId: number) {

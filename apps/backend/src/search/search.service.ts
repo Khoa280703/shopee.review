@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
+import { MeilisearchService } from './meilisearch.service';
 
 interface PostSearchRow {
   id: number;
@@ -21,9 +22,12 @@ interface PostSearchRow {
 
 @Injectable()
 export class SearchService {
+  private readonly logger = new Logger(SearchService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
+    private readonly meili: MeilisearchService,
   ) {}
 
   async search(query: string, type: 'posts' | 'users' | 'all', page = 1) {
@@ -44,6 +48,51 @@ export class SearchService {
   }
 
   private async searchPosts(query: string, page: number) {
+    // Primary: Meilisearch (diacritic-insensitive). Fallback: PostgreSQL FTS.
+    if (this.meili.enabled) {
+      try {
+        const ids = await this.meili.searchPosts(query, page);
+        if (ids !== null) {
+          return ids.length ? this.loadPostsByIds(ids) : [];
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Meili search failed, falling back to PG FTS: ${
+            error instanceof Error ? error.message : error
+          }`,
+        );
+      }
+    }
+    return this.ftsSearchPosts(query, page);
+  }
+
+  private async loadPostsByIds(ids: number[]) {
+    const posts = await this.prisma.post.findMany({
+      where: { id: { in: ids } },
+      include: { user: { select: { username: true, displayName: true, avatarUrl: true } } },
+    });
+    const byId = new Map(posts.map((p) => [p.id, p]));
+    // Preserve Meilisearch relevance ordering.
+    return ids
+      .map((id) => byId.get(id))
+      .filter((p): p is NonNullable<typeof p> => !!p)
+      .map((p) => ({
+        id: p.id,
+        title: p.title,
+        content: p.content,
+        images: p.images,
+        affiliateUrl: p.affiliateUrl,
+        productUrl: p.productUrl,
+        productMeta: p.productMeta,
+        likeCount: p.likeCount,
+        commentCount: p.commentCount,
+        clickCount: p.clickCount,
+        createdAt: p.createdAt,
+        user: p.user,
+      }));
+  }
+
+  private async ftsSearchPosts(query: string, page: number) {
     const offset = (page - 1) * 20;
     const rows = await this.prisma.$queryRaw<PostSearchRow[]>`
       SELECT p.id, p.title, p.content, p.images, p.affiliate_url, p.product_url,

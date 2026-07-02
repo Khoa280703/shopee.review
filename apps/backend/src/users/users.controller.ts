@@ -1,15 +1,16 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
@@ -37,6 +38,17 @@ export class UsersController {
     return this.usersService.updateProfile(user.id, dto);
   }
 
+  @Delete('me')
+  @UseGuards(JwtAuthGuard)
+  async deleteMe(
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.usersService.deleteAccount(user.id);
+    res.clearCookie('auth_token', { path: '/' });
+    return result;
+  }
+
   @Get(':username')
   @UseGuards(OptionalJwtAuthGuard)
   getProfile(@Param('username') username: string, @Req() req: Request) {
@@ -49,11 +61,13 @@ export class UsersController {
     @Param('username') username: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
+    @Query('hasProduct') hasProduct?: string,
   ) {
     return this.usersService.getUserPosts(
       username,
       cursor ? Number(cursor) : undefined,
       limit ? Number(limit) : 20,
+      hasProduct === 'true',
     );
   }
 }

@@ -1,12 +1,26 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '@app/database';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
+import { Prisma } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../common/current-user.decorator';
+import { NotificationsService } from '../notifications/notifications.service';
+import {
+  INDEX_JOB,
+  INDEX_QUEUE,
+  SCRAPER_JOB,
+  SCRAPER_QUEUE,
+} from '../queue/queue.constants';
+import { MeilisearchService } from '../search/meilisearch.service';
 import {
   normalizeShopeeUrl,
   SCRAPER_PROVIDER,
@@ -17,19 +31,116 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { QueryPostsDto } from './dto/query-posts.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
+const SHOPEE_HOSTS = ['shopee.vn', 'shopee.com', 'shp.ee'];
+
+export interface ScrapeJobResult {
+  status: 'queued' | 'active' | 'completed' | 'failed' | 'unknown';
+  data?: ScrapedDealData;
+  error?: string;
+}
+
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const FEED_CACHE_TTL_MS = 60 * 1000;
 
 const POST_INCLUDE = {
   user: { select: { username: true, displayName: true, avatarUrl: true } },
   category: true,
 } satisfies Prisma.PostInclude;
 
+type RawPostRow = {
+  id: number;
+  user_id: number;
+  title: string;
+  content: string | null;
+  product_url: string;
+  affiliate_url: string;
+  product_meta: unknown;
+  images: string[];
+  category_id: number | null;
+  like_count: number;
+  comment_count: number;
+  click_count: number;
+  created_at: Date;
+  updated_at: Date;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+};
+
+function mapRawPostRow({
+  username,
+  display_name,
+  avatar_url,
+  ...row
+}: RawPostRow) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    content: row.content,
+    productUrl: row.product_url,
+    affiliateUrl: row.affiliate_url,
+    productMeta: row.product_meta,
+    images: row.images,
+    categoryId: row.category_id,
+    likeCount: Number(row.like_count),
+    commentCount: Number(row.comment_count),
+    clickCount: Number(row.click_count),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    user: { username, displayName: display_name, avatarUrl: avatar_url },
+  };
+}
+
 @Injectable()
 export class PostsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(SCRAPER_PROVIDER) private readonly scraperProvider: ScraperProvider,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    private readonly notifications: NotificationsService,
+    private readonly meili: MeilisearchService,
+    @Optional()
+    @InjectQueue(SCRAPER_QUEUE)
+    private readonly scraperQueue?: Queue,
+    @Optional()
+    @InjectQueue(INDEX_QUEUE)
+    private readonly indexQueue?: Queue,
   ) {}
+
+  // Async Meilisearch sync when a queue exists; otherwise index inline
+  // (best-effort, never throws into the request path).
+  private async syncSearchIndex(
+    op: 'upsert' | 'delete',
+    postId: number,
+  ): Promise<void> {
+    try {
+      if (this.indexQueue) {
+        await this.indexQueue.add(
+          op === 'upsert' ? INDEX_JOB.UPSERT : INDEX_JOB.DELETE,
+          { postId },
+        );
+        return;
+      }
+      if (!this.meili.enabled) return;
+      if (op === 'upsert') await this.meili.indexPost(postId);
+      else await this.meili.deletePost(postId);
+    } catch {
+      // Search index sync is best-effort.
+    }
+  }
+
+  private async cached<T>(
+    key: string,
+    fn: () => Promise<T>,
+    ttl = FEED_CACHE_TTL_MS,
+  ): Promise<T> {
+    const hit = await this.cache.get<T>(key);
+    if (hit !== undefined && hit !== null) return hit;
+    const result = await fn();
+    await this.cache.set(key, result, ttl);
+    return result;
+  }
 
   async findAll(dto: QueryPostsDto) {
     const limit = dto.limit ?? 20;
@@ -70,30 +181,77 @@ export class PostsService {
     return post;
   }
 
-  async getTrending(limit = 20) {
-    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const posts = await this.prisma.post.findMany({
-      where: { createdAt: { gte: since } },
-      include: POST_INCLUDE,
-      take: 100,
-      orderBy: { createdAt: 'desc' },
-    });
+  async findExplore(offset: number, limit: number, categoryId?: number) {
+    const key = `explore:${categoryId ?? 'all'}:${offset}:${limit}`;
+    return this.cached(key, () =>
+      this.queryExplore(offset, limit, categoryId),
+    );
+  }
 
-    return posts
-      .map((p) => ({
-        post: p,
-        score: p.clickCount * 0.4 + p.likeCount * 0.3 + p.commentCount * 0.3,
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map((entry) => entry.post);
+  private async queryExplore(offset: number, limit: number, categoryId?: number) {
+    const whereClause = categoryId
+      ? Prisma.sql`WHERE p.category_id = ${categoryId}`
+      : Prisma.sql``;
+
+    const rows = await this.prisma.$queryRaw<RawPostRow[]>`
+      SELECT
+        p.*,
+        u.username,
+        u.display_name,
+        u.avatar_url,
+        (
+          p.like_count    * 3 +
+          p.comment_count * 5 +
+          p.click_count   * 2 +
+          CASE WHEN p.created_at > NOW() - INTERVAL '24 hours' THEN 30 ELSE 0 END +
+          CASE WHEN p.created_at > NOW() - INTERVAL '48 hours' THEN 15 ELSE 0 END +
+          CASE WHEN p.created_at > NOW() - INTERVAL '7 days'  THEN  5 ELSE 0 END
+        ) AS score
+      FROM posts p
+      JOIN users u ON u.id = p.user_id
+      ${whereClause}
+      ORDER BY score DESC, p.id DESC
+      LIMIT ${limit + 1}
+      OFFSET ${offset}
+    `;
+
+    const hasMore = rows.length > limit;
+    const data = hasMore ? rows.slice(0, limit) : rows;
+
+    return {
+      data: data.map(mapRawPostRow),
+      nextCursor: hasMore ? offset + limit : null,
+    };
+  }
+
+  async getTrending(limit = 20) {
+    return this.cached(`trending:${limit}`, () => this.queryTrending(limit));
+  }
+
+  private async queryTrending(limit = 20) {
+    // Reads the precomputed materialized view (refreshed every 5 min by
+    // TrendingRefreshService) instead of aggregating live. User fields are
+    // joined fresh so display names/avatars are always current.
+    const rows = await this.prisma.$queryRaw<RawPostRow[]>`
+      SELECT
+        mv.*,
+        u.username,
+        u.display_name,
+        u.avatar_url
+      FROM trending_posts_mv mv
+      JOIN users u ON u.id = mv.user_id
+      ORDER BY mv.score DESC, mv.id DESC
+      LIMIT ${limit}
+    `;
+
+    return rows.map(mapRawPostRow);
   }
 
   async create(user: AuthUser, dto: CreatePostDto) {
     if (!user.emailVerified) {
       throw new ForbiddenException('Vui lòng xác minh email trước khi đăng bài');
     }
-    return this.prisma.post.create({
+    const post = await this.prisma.post.create({
       data: {
         userId: user.id,
         title: dto.title,
@@ -106,11 +264,17 @@ export class PostsService {
       },
       include: POST_INCLUDE,
     });
+
+    // Notify followers (queued fan-out for high-follower users, inline otherwise).
+    void this.notifications.fanoutNewPost(user.id, post.id);
+    void this.syncSearchIndex('upsert', post.id);
+
+    return post;
   }
 
   async update(userId: number, postId: number, dto: UpdatePostDto) {
     await this.assertOwner(userId, postId);
-    return this.prisma.post.update({
+    const post = await this.prisma.post.update({
       where: { id: postId },
       data: {
         ...dto,
@@ -118,11 +282,14 @@ export class PostsService {
       },
       include: POST_INCLUDE,
     });
+    void this.syncSearchIndex('upsert', postId);
+    return post;
   }
 
   async remove(userId: number, postId: number) {
     await this.assertOwner(userId, postId);
     await this.prisma.post.delete({ where: { id: postId } });
+    void this.syncSearchIndex('delete', postId);
   }
 
   private async assertOwner(userId: number, postId: number) {
@@ -136,6 +303,57 @@ export class PostsService {
     if (post.userId !== userId) {
       throw new ForbiddenException('Bạn không có quyền chỉnh sửa bài viết này');
     }
+  }
+
+  private assertShopeeUrl(url: string): void {
+    let host: string;
+    try {
+      host = new URL(url.trim()).hostname.toLowerCase();
+    } catch {
+      throw new BadRequestException('URL không hợp lệ');
+    }
+    const ok = SHOPEE_HOSTS.some(
+      (d) => host === d || host.endsWith(`.${d}`),
+    );
+    if (!ok) {
+      throw new BadRequestException('Chỉ hỗ trợ link Shopee');
+    }
+  }
+
+  /**
+   * Async scrape entrypoint. With Redis/queue (prod): enqueue and return a jobId
+   * for the client to poll. Without a queue (host dev): run synchronously and
+   * return the scraped data directly — both shapes handled by the API client.
+   */
+  async requestScrape(url: string): Promise<{ jobId: string } | ScrapedDealData> {
+    this.assertShopeeUrl(url);
+    if (this.scraperQueue) {
+      const job = await this.scraperQueue.add(SCRAPER_JOB.SCRAPE, { url });
+      return { jobId: String(job.id) };
+    }
+    return this.scrapeUrl(url);
+  }
+
+  async getScrapeResult(jobId: string): Promise<ScrapeJobResult> {
+    if (!this.scraperQueue) {
+      throw new NotFoundException('Hàng đợi scrape không khả dụng');
+    }
+    const job = await this.scraperQueue.getJob(jobId);
+    if (!job) {
+      throw new NotFoundException('Không tìm thấy job');
+    }
+    const state = await job.getState();
+    if (state === 'completed') {
+      return { status: 'completed', data: job.returnvalue as ScrapedDealData };
+    }
+    if (state === 'failed') {
+      return { status: 'failed', error: job.failedReason };
+    }
+    if (state === 'active') return { status: 'active' };
+    if (state === 'waiting' || state === 'delayed' || state === 'prioritized') {
+      return { status: 'queued' };
+    }
+    return { status: 'unknown' };
   }
 
   async scrapeUrl(url: string): Promise<ScrapedDealData> {
