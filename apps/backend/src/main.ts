@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
+import { parseAllowedOrigins } from './common/shopee-url';
 import { PrismaExceptionFilter } from './common/prisma-exception.filter';
 import { RedisIoAdapter } from './social/redis-io.adapter';
 
@@ -11,6 +12,16 @@ async function bootstrap() {
   // bufferLogs so startup logs flow through Pino once it's resolved.
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
+
+  // Production chain is Traefik → nginx → backend (2 private-network hops), but
+  // the dev path (nginx published on :8081) is 1 hop. A fixed hop count would be
+  // wrong for one of them, so trust every proxy on loopback/private ranges and
+  // take the left-most non-trusted XFF entry as the real client. Without this,
+  // req.ip = a proxy IP and per-IP throttling + click dedup collapse to one bucket.
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 
   // Multi-instance Socket.io broadcasting when Redis is available; default
   // in-memory adapter otherwise (single instance / host dev).
@@ -30,12 +41,11 @@ async function bootstrap() {
     ],
   });
   app.use(cookieParser());
-  const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5166')
-    .split(',')
-    .map((o) => o.trim());
+  const allowedOrigins = parseAllowedOrigins(process.env.FRONTEND_URL);
   app.enableCors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.some((o) => origin.startsWith(o))) {
+      // Exact match only — startsWith allowed https://shopee.review.evil.com.
+      if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
         cb(null, true);
       } else {
         cb(new Error(`CORS: origin ${origin} not allowed`));

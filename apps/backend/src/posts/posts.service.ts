@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -27,11 +26,13 @@ import {
   type ScraperProvider,
 } from '../scraper/scraper-provider.interface';
 import type { ScrapedDealData } from '../scraper/types/scraped-deal-data';
+import {
+  assertShopeeAffiliateUrl,
+  assertShopeeProductUrl,
+} from '../common/shopee-url';
 import { CreatePostDto } from './dto/create-post.dto';
 import { QueryPostsDto } from './dto/query-posts.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-
-const SHOPEE_HOSTS = ['shopee.vn', 'shopee.com', 'shp.ee'];
 
 export interface ScrapeJobResult {
   status: 'queued' | 'active' | 'completed' | 'failed' | 'unknown';
@@ -251,6 +252,10 @@ export class PostsService {
     if (!user.emailVerified) {
       throw new ForbiddenException('Vui lòng xác minh email trước khi đăng bài');
     }
+    // Block open-redirect: productUrl must be a real Shopee product; affiliateUrl
+    // may be the user's own affiliate/short link but its destination must be Shopee.
+    assertShopeeProductUrl(dto.productUrl);
+    assertShopeeAffiliateUrl(dto.affiliateUrl);
     const post = await this.prisma.post.create({
       data: {
         userId: user.id,
@@ -274,6 +279,8 @@ export class PostsService {
 
   async update(userId: number, postId: number, dto: UpdatePostDto) {
     await this.assertOwner(userId, postId);
+    if (dto.productUrl !== undefined) assertShopeeProductUrl(dto.productUrl);
+    if (dto.affiliateUrl !== undefined) assertShopeeAffiliateUrl(dto.affiliateUrl);
     const post = await this.prisma.post.update({
       where: { id: postId },
       data: {
@@ -306,18 +313,9 @@ export class PostsService {
   }
 
   private assertShopeeUrl(url: string): void {
-    let host: string;
-    try {
-      host = new URL(url.trim()).hostname.toLowerCase();
-    } catch {
-      throw new BadRequestException('URL không hợp lệ');
-    }
-    const ok = SHOPEE_HOSTS.some(
-      (d) => host === d || host.endsWith(`.${d}`),
-    );
-    if (!ok) {
-      throw new BadRequestException('Chỉ hỗ trợ link Shopee');
-    }
+    // Scrape entrypoint accepts any Shopee URL (product or short link); the
+    // affiliate-destination check is enforced on post create/update instead.
+    assertShopeeAffiliateUrl(url);
   }
 
   /**

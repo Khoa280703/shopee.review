@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { isValidAffiliateUrl, isValidProductUrl } from '../common/shopee-url';
 
 const DEDUP_WINDOW_MS = 60 * 60 * 1000;
 
@@ -13,10 +14,23 @@ export class TrackerService {
   ): Promise<string> {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, userId: true, affiliateUrl: true },
+      select: { id: true, userId: true, affiliateUrl: true, productUrl: true },
     });
     if (!post) {
       throw new NotFoundException('Không tìm thấy bài viết');
+    }
+
+    // Validate the redirect target BEFORE any click write (no counter pumping on
+    // a rejected URL). New posts are validated at create time, but legacy rows
+    // may hold a dirty affiliateUrl — fall back to the product URL (degraded:
+    // the user loses commission on that click) rather than a hard failure.
+    let redirectUrl: string;
+    if (isValidAffiliateUrl(post.affiliateUrl)) {
+      redirectUrl = post.affiliateUrl;
+    } else if (isValidProductUrl(post.productUrl)) {
+      redirectUrl = post.productUrl;
+    } else {
+      throw new BadRequestException('Link bài viết không hợp lệ');
     }
 
     const recentClick = meta.ip
@@ -51,6 +65,6 @@ export class TrackerService {
       ]);
     }
 
-    return post.affiliateUrl;
+    return redirectUrl;
   }
 }

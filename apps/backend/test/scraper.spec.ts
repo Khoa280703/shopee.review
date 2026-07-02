@@ -20,13 +20,19 @@ describe('parseShopeeUrl', () => {
 });
 
 describe('AffiliateLinkGenerator', () => {
-  it('generates encoded Shopee affiliate links', () => {
-    const config = { getOrThrow: () => 'affiliate-1' } as unknown as ConfigService;
+  it('generates encoded Shopee affiliate links when an affiliate id is set', () => {
+    const config = { get: () => 'affiliate-1' } as unknown as ConfigService;
     const link = new AffiliateLinkGenerator(config).generate('https://shopee.vn/foo-i.1.2', 'deal-2');
     expect(link).toContain('https://s.shopee.vn/an_redir?');
     expect(link).toContain('affiliate_id=affiliate-1');
     expect(link).toContain('sub_id=deal-2');
     expect(link).toContain('origin_link=https%3A%2F%2Fshopee.vn%2Ffoo-i.1.2');
+  });
+
+  it('degrades to the plain product URL when SHOPEE_AFFILIATE_ID is unset', () => {
+    const config = { get: () => undefined } as unknown as ConfigService;
+    const link = new AffiliateLinkGenerator(config).generate('https://shopee.vn/foo-i.1.2');
+    expect(link).toBe('https://shopee.vn/foo-i.1.2');
   });
 });
 

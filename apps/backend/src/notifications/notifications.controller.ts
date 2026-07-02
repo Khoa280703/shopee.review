@@ -1,4 +1,4 @@
-import { Controller, Get, type MessageEvent, Patch, Sse, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, type MessageEvent, Patch, Sse, UseGuards } from '@nestjs/common';
 import type { Observable } from 'rxjs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
@@ -26,7 +26,12 @@ export class NotificationsController {
     return this.notificationsService.markAllRead(user.id);
   }
 
+  // X-Accel-Buffering:no tells nginx not to buffer this response, so SSE events
+  // flush immediately instead of being held; Cache-Control:no-cache prevents any
+  // proxy from caching the stream.
   @Sse('stream')
+  @Header('X-Accel-Buffering', 'no')
+  @Header('Cache-Control', 'no-cache')
   @UseGuards(JwtAuthGuard)
   stream(@CurrentUser() user: AuthUser): Observable<MessageEvent> {
     return this.notificationsService.createStream(user.id);

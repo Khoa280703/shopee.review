@@ -8,6 +8,7 @@ import {
   type OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
+import { parseAllowedOrigins } from '../common/shopee-url';
 
 const room = (postId: number | string) => `post:${postId}`;
 
@@ -19,9 +20,7 @@ const room = (postId: number | string) => `post:${postId}`;
  */
 @WebSocketGateway({
   cors: {
-    origin: (process.env.FRONTEND_URL || 'http://localhost:5166')
-      .split(',')
-      .map((o) => o.trim()),
+    origin: parseAllowedOrigins(process.env.FRONTEND_URL),
     credentials: true,
   },
 })

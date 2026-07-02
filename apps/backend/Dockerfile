@@ -28,5 +28,5 @@ COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
 COPY --from=builder /app/apps/backend/package.json ./apps/backend/package.json
 COPY --from=builder /app/packages/database ./packages/database
 RUN mkdir -p /app/uploads
-EXPOSE 3001
+EXPOSE 3066
 CMD ["sh", "-c", "cd packages/database && pnpm exec prisma migrate deploy && cd /app && node apps/backend/dist/main.js"]

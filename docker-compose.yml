@@ -22,10 +22,14 @@ services:
   redis:
     image: redis:7.2-alpine
     restart: unless-stopped
+    # Shared by cache-manager (60s-TTL keys, self-expiring), BullMQ, Socket.io
+    # adapter and SSE pub/sub. maxmemory-policy MUST be noeviction — BullMQ job
+    # state can never be evicted; cache keys expire via TTL, not eviction.
+    # (Was 48gb/allkeys-lru, which risked silently dropping queue jobs.)
     command: >-
       redis-server
-      --maxmemory 48gb
-      --maxmemory-policy allkeys-lru
+      --maxmemory 512mb
+      --maxmemory-policy noeviction
       --appendonly yes
       --appendfsync everysec
     volumes:
@@ -115,6 +119,10 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
+      # Optional: platform affiliate id (scrape degrades to plain product URL if unset).
+      SHOPEE_AFFILIATE_ID: ${SHOPEE_AFFILIATE_ID:-}
+      # First-admin bootstrap: comma-separated usernames granted is_admin on boot.
+      ADMIN_BOOTSTRAP_USERNAME: ${ADMIN_BOOTSTRAP_USERNAME:-}
       CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
       R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}

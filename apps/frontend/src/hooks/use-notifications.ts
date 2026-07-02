@@ -24,22 +24,53 @@ export function useNotifications() {
       .then((r) => setUnreadCount(r.count))
       .catch(() => undefined);
 
-    const eventSource = new EventSource(`${API_URL}/notifications/stream`, {
-      withCredentials: true,
-    });
-    eventSource.onmessage = (e) => {
-      if (e.data === 'ping') return;
-      try {
-        const notification: AppNotification = JSON.parse(e.data);
-        setNotifications((prev) => [notification, ...prev]);
-        setUnreadCount((c) => c + 1);
-      } catch {
-        // ignore malformed events
-      }
-    };
-    eventSource.onerror = () => eventSource.close();
+    // Manual reconnect with backoff. The browser's built-in EventSource retry
+    // fires for transient network drops, but on a 401 (session revoked/banned)
+    // it would hammer the endpoint — so we cap attempts and stop. A closed
+    // stream that reopens cleanly resets the attempt counter via onopen.
+    let source: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    let stopped = false;
+    const MAX_ATTEMPTS = 5;
+    const RETRY_DELAY_MS = 3000;
 
-    return () => eventSource.close();
+    const connect = () => {
+      if (stopped) return;
+      source = new EventSource(`${API_URL}/notifications/stream`, {
+        withCredentials: true,
+      });
+      source.onopen = () => {
+        attempts = 0;
+      };
+      source.onmessage = (e) => {
+        if (e.data === 'ping') return;
+        try {
+          const notification: AppNotification = JSON.parse(e.data);
+          setNotifications((prev) => [notification, ...prev]);
+          setUnreadCount((c) => c + 1);
+        } catch {
+          // ignore malformed events
+        }
+      };
+      source.onerror = () => {
+        source?.close();
+        if (stopped) return;
+        attempts += 1;
+        // Give up after MAX_ATTEMPTS (covers the 401/revoked-session case where
+        // reconnecting can never succeed until the user logs in again).
+        if (attempts > MAX_ATTEMPTS) return;
+        retryTimer = setTimeout(connect, RETRY_DELAY_MS);
+      };
+    };
+
+    connect();
+
+    return () => {
+      stopped = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      source?.close();
+    };
   }, [user]);
 
   const markAllRead = useCallback(async () => {
