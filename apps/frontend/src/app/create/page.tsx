@@ -14,12 +14,12 @@ export default function CreatePage() {
   }, [loading, user, router]);
 
   if (loading || !user) {
-    return <div className="py-16 text-center text-slate-500">Đang tải...</div>;
+    return <div className="py-16 text-center text-on-surface-variant">Đang tải...</div>;
   }
 
   return (
-    <div className="mx-auto max-w-2xl py-4">
-      <h1 className="mb-6 text-2xl font-bold">Tạo bài review</h1>
+    <div className="mx-auto w-full max-w-2xl px-4 py-lg">
+      <h1 className="mb-6 font-display-lg-mobile text-display-lg-mobile font-bold text-on-surface">Tạo bài review</h1>
       <PostForm />
     </div>
   );

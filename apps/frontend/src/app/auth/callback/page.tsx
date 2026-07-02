@@ -13,7 +13,7 @@ export default function AuthCallbackPage() {
   }, [refresh, router]);
 
   return (
-    <div className="flex min-h-[40vh] items-center justify-center text-slate-500">
+    <div className="flex min-h-[40vh] items-center justify-center text-on-surface-variant">
       Đang đăng nhập...
     </div>
   );

@@ -3,11 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { buttonClasses } from '@/components/ui/button-classes';
 import { uploadImage, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 export default function SettingsPage() {
-  const { user, loading, refresh } = useAuth();
+  const { user, loading, refresh, setUser } = useAuth();
   const router = useRouter();
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
@@ -15,6 +19,8 @@ export default function SettingsPage() {
   const [affiliateId, setAffiliateId] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -51,63 +57,96 @@ export default function SettingsPage() {
     }
   }
 
+  async function deleteAccount() {
+    setDeleting(true);
+    try {
+      await usersApi.deleteAccount();
+      setUser(null);
+      router.replace('/');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Xóa tài khoản thất bại');
+      setDeleting(false);
+    }
+  }
+
   if (loading || !user) {
-    return <div className="py-16 text-center text-slate-500">Đang tải...</div>;
+    return <div className="py-16 text-center text-on-surface-variant">Đang tải...</div>;
   }
 
   return (
-    <div className="mx-auto max-w-xl py-4">
-      <h1 className="mb-6 text-2xl font-bold">Cài đặt</h1>
+    <div className="mx-auto w-full max-w-xl px-4 py-lg">
+      <h1 className="mb-6 font-display-lg-mobile text-display-lg-mobile font-bold text-on-surface">Cài đặt</h1>
       <form onSubmit={save} className="space-y-5">
         <div className="flex items-center gap-4">
           <Avatar src={avatarUrl} name={displayName || user.username} size={64} />
-          <label className="cursor-pointer rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">
+          <label className={buttonClasses({ variant: 'outline', size: 'sm', className: 'cursor-pointer' })}>
             Đổi ảnh đại diện
             <input type="file" accept="image/*" className="hidden" onChange={onAvatar} />
           </label>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Tên hiển thị</label>
-          <input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            className="h-11 w-full rounded-lg border border-slate-300 px-4 text-sm outline-none focus:border-orange-500"
-          />
+          <label className="mb-1 block text-body-sm font-medium text-on-surface">Tên hiển thị</label>
+          <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Giới thiệu</label>
-          <textarea
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            rows={3}
-            maxLength={500}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none focus:border-orange-500"
-          />
+          <label className="mb-1 block text-body-sm font-medium text-on-surface">Giới thiệu</label>
+          <Textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={500} />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">🔗 Affiliate ID Shopee</label>
-          <input
+          <label className="mb-1 block text-body-sm font-medium text-on-surface">Affiliate ID Shopee</label>
+          <Input
             value={affiliateId}
             onChange={(e) => setAffiliateId(e.target.value)}
             placeholder="Affiliate ID của bạn"
-            className="h-11 w-full rounded-lg border border-slate-300 px-4 text-sm outline-none focus:border-orange-500"
           />
-          <p className="mt-1 text-xs text-slate-400">Đăng ký tại affiliate.shopee.vn</p>
+          <p className="mt-1 text-label-caps text-on-surface-variant">Đăng ký tại affiliate.shopee.vn</p>
         </div>
 
-        {message && <p className="text-sm text-green-600">{message}</p>}
+        {message && <p className="text-body-sm text-tertiary">{message}</p>}
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="h-11 w-full rounded-lg bg-orange-500 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60"
-        >
+        <Button type="submit" fullWidth size="lg" disabled={saving}>
           {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
-        </button>
+        </Button>
       </form>
+
+      <div className="mt-10 rounded-xl border border-error/40 bg-error/5 p-4">
+        <h2 className="font-title-md text-title-md font-semibold text-error">Vùng nguy hiểm</h2>
+        <p className="mt-1 text-body-sm text-on-surface-variant">
+          Xóa tài khoản sẽ gỡ bỏ vĩnh viễn toàn bộ bài viết, bình luận, lượt thích và người theo dõi của bạn. Hành động này không thể hoàn tác.
+        </p>
+
+        {confirmDelete ? (
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => setConfirmDelete(false)}
+              disabled={deleting}
+            >
+              Hủy
+            </Button>
+            <button
+              type="button"
+              onClick={deleteAccount}
+              disabled={deleting}
+              className="rounded-lg bg-error px-4 py-2 text-body-md font-semibold text-on-error disabled:opacity-60"
+            >
+              {deleting ? 'Đang xóa...' : 'Tôi chắc chắn, xóa tài khoản'}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="mt-4 rounded-lg border border-error px-4 py-2 text-body-md font-semibold text-error"
+          >
+            Xóa tài khoản
+          </button>
+        )}
+      </div>
     </div>
   );
 }

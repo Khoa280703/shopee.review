@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { ApiError, postsApi } from '@/lib/api';
 import { Avatar } from '@/components/ui/avatar';
-import { ImageCarousel } from '@/components/post/image-carousel';
+import { Icon } from '@/components/ui/icon';
 import { CommentsSection } from '@/components/social/comments-section';
 import { LikeButton } from '@/components/social/like-button';
+import { FollowButton } from '@/components/social/follow-button';
 import { clickRedirectUrl, resolveAssetUrl, SITE_NAME } from '@/lib/constants';
 import { formatNumber, formatPrice, timeAgo } from '@/lib/format';
 import type { Post } from '@/types';
@@ -48,6 +50,8 @@ export default async function PostDetailPage({
     throw e;
   }
 
+  const related = await postsApi.trending(true).catch(() => [] as Post[]);
+  const images = (post.images ?? []).map(resolveAssetUrl).filter(Boolean) as string[];
   const meta = post.productMeta ?? {};
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -57,63 +61,175 @@ export default async function PostDetailPage({
     datePublished: post.createdAt,
     publisher: { '@type': 'Organization', name: SITE_NAME },
   };
+  // Escape `<` so user-controlled fields (e.g. post.title) can't break out of
+  // the <script> tag via `</script>`. \u003c is valid inside JSON string values.
+  const jsonLdSafe = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
 
   return (
-    <article className="mx-auto max-w-3xl space-y-6 py-4">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+    <div className="mx-auto flex w-full max-w-container-max gap-lg px-0 py-lg sm:px-4 lg:px-lg">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdSafe }} />
 
-      <ImageCarousel images={post.images ?? []} alt={post.title} />
+      <div className="flex w-full flex-1 flex-col gap-lg lg:max-w-[700px]">
+        {/* Review card */}
+        <article className="flex flex-col gap-md border-y border-outline-variant bg-surface p-md shadow-sm sm:rounded-xl sm:border lg:p-lg">
+          {/* Author header */}
+          <header className="flex items-center justify-between">
+            <Link href={`/${post.user.username}`} className="flex items-center gap-md">
+              <Avatar src={post.user.avatarUrl} name={post.user.displayName} size={48} />
+              <div>
+                <h2 className="font-headline-md text-headline-md text-on-surface">{post.user.displayName}</h2>
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  @{post.user.username} • {timeAgo(post.createdAt)}
+                </p>
+              </div>
+            </Link>
+            <FollowButton username={post.user.username} initialFollowing={false} />
+          </header>
 
-      <Link href={`/${post.user.username}`} className="flex items-center gap-2">
-        <Avatar src={post.user.avatarUrl} name={post.user.displayName} size={40} />
-        <div>
-          <p className="font-semibold">{post.user.displayName}</p>
-          <p className="text-xs text-slate-400">@{post.user.username} · {timeAgo(post.createdAt)}</p>
-        </div>
-      </Link>
+          {/* Image gallery */}
+          {images.length > 0 && (
+            <div className="grid grid-cols-2 gap-sm overflow-hidden rounded-xl">
+              <div className="relative col-span-2 h-80 bg-surface-container-low">
+                <Image
+                  src={images[0]}
+                  alt={post.title}
+                  fill
+                  priority
+                  sizes="(max-width:700px) 100vw, 700px"
+                  className="object-cover"
+                />
+              </div>
+              {images.slice(1, 3).map((src, i) => (
+                <div key={i} className="relative h-40 bg-surface-container-low">
+                  <Image
+                    src={src}
+                    alt={post.title}
+                    fill
+                    sizes="(max-width:700px) 50vw, 350px"
+                    className="object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
 
-      <h1 className="text-2xl font-bold">{post.title}</h1>
+          <h1 className="font-display-lg-mobile text-display-lg-mobile text-on-surface">{post.title}</h1>
 
-      {meta.salePrice != null && (
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold text-red-600">{formatPrice(meta.salePrice)}</span>
-          {meta.originalPrice && meta.originalPrice > meta.salePrice ? (
-            <span className="text-slate-400 line-through">{formatPrice(meta.originalPrice)}</span>
-          ) : null}
-          {meta.discountPercent ? (
-            <span className="text-sm font-semibold text-red-500">-{meta.discountPercent}%</span>
-          ) : null}
-        </div>
-      )}
+          {/* Review text */}
+          {post.content && (
+            <div className="flex flex-col gap-sm whitespace-pre-wrap font-body-md text-body-md text-on-surface">
+              {post.content}
+            </div>
+          )}
 
-      {(meta.shopName || meta.soldCount) && (
-        <p className="text-sm text-slate-500">
-          {meta.shopName ? `Shop: ${meta.shopName}` : ''}
-          {meta.soldCount ? ` · Đã bán ${formatNumber(meta.soldCount)}` : ''}
-        </p>
-      )}
+          {/* Embedded product card */}
+          <div className="mt-sm flex flex-col items-center gap-md rounded-xl border border-outline-variant bg-surface-container-low p-md sm:flex-row">
+            {images[0] && (
+              <Image
+                src={images[0]}
+                alt=""
+                width={96}
+                height={96}
+                className="h-24 w-24 rounded-lg bg-surface object-cover"
+              />
+            )}
+            <div className="flex-1 text-center sm:text-left">
+              <h3 className="font-headline-md text-body-md text-on-surface">{post.title}</h3>
+              {meta.rating != null && (
+                <div className="mt-xs flex items-center justify-center gap-xs sm:justify-start">
+                  <Icon name="star" fill className="text-sm text-primary" />
+                  <span className="font-body-sm text-body-sm text-on-surface-variant">
+                    ({Number(meta.rating).toFixed(1)})
+                  </span>
+                </div>
+              )}
+              {meta.salePrice != null ? (
+                <p className="mt-sm font-price-lg text-price-lg text-primary">
+                  {formatPrice(meta.salePrice)}
+                  {meta.originalPrice && meta.originalPrice > meta.salePrice ? (
+                    <span className="ml-2 font-normal text-body-sm text-on-surface-variant line-through">
+                      {formatPrice(meta.originalPrice)}
+                    </span>
+                  ) : null}
+                </p>
+              ) : null}
+              {(meta.shopName || meta.soldCount) && (
+                <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
+                  {meta.shopName ? meta.shopName : ''}
+                  {meta.soldCount ? ` • Đã bán ${formatNumber(meta.soldCount)}` : ''}
+                </p>
+              )}
+            </div>
+            <a
+              href={clickRedirectUrl(post.id)}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="flex w-full items-center justify-center gap-xs rounded-lg bg-primary px-lg py-sm font-headline-md text-body-md text-on-primary transition-colors hover:bg-primary-container sm:w-auto"
+            >
+              <Icon name="shopping_cart" className="text-sm" />
+              Mua ngay
+            </a>
+          </div>
 
-      <a
-        href={clickRedirectUrl(post.id)}
-        target="_blank"
-        rel="noopener noreferrer nofollow"
-        className="inline-flex h-12 w-full items-center justify-center rounded-lg bg-orange-500 text-base font-semibold text-white hover:bg-orange-600"
-      >
-        🛒 Mua ngay trên Shopee →
-      </a>
+          {/* Interaction bar */}
+          <div className="mt-sm flex items-center gap-lg border-t border-outline-variant pt-md text-on-surface-variant">
+            <LikeButton postId={post.id} initialCount={post.likeCount} variant="icon" />
+            <Link href="#comments" className="flex items-center gap-xs transition-colors hover:text-tertiary">
+              <Icon name="chat_bubble" className="text-lg" />
+              <span className="font-body-sm text-body-sm">{formatNumber(post.commentCount)}</span>
+            </Link>
+            <span className="flex items-center gap-xs">
+              <Icon name="ads_click" className="text-lg" />
+              <span className="font-body-sm text-body-sm">{formatNumber(post.clickCount)}</span>
+            </span>
+          </div>
+        </article>
 
-      {post.content && (
-        <div className="whitespace-pre-wrap rounded-xl border border-slate-200 bg-white p-4 text-slate-700">
-          {post.content}
-        </div>
-      )}
-
-      <div className="flex items-center gap-3 border-y border-slate-200 py-3">
-        <LikeButton postId={post.id} initialCount={post.likeCount} />
-        <span className="text-sm text-slate-500">{formatNumber(post.commentCount)} bình luận</span>
+        {/* Comments */}
+        <section className="border-y border-outline-variant bg-surface p-md shadow-sm sm:rounded-xl sm:border lg:p-lg">
+          <CommentsSection postId={post.id} />
+        </section>
       </div>
 
-      <CommentsSection postId={post.id} />
-    </article>
+      {/* Related products */}
+      <aside className="hidden w-80 shrink-0 lg:block">
+        <div className="sticky top-6 rounded-xl border border-outline-variant bg-surface p-md shadow-sm">
+          <h3 className="mb-md font-headline-md text-headline-md text-on-surface">Sản phẩm liên quan</h3>
+          <div className="flex flex-col gap-md">
+            {related
+              .filter((p) => p.id !== post.id)
+              .slice(0, 5)
+              .map((p) => {
+                const img = resolveAssetUrl(p.images?.[0]);
+                return (
+                  <Link key={p.id} href={`/${p.user.username}/${p.id}`} className="group flex items-center gap-md">
+                    {img ? (
+                      <Image
+                        src={img}
+                        alt=""
+                        width={64}
+                        height={64}
+                        className="h-16 w-16 rounded-lg border border-outline-variant bg-surface-container object-cover"
+                      />
+                    ) : (
+                      <span className="h-16 w-16 rounded-lg border border-outline-variant bg-surface-container" />
+                    )}
+                    <div className="min-w-0">
+                      <h4 className="font-headline-md text-body-sm text-on-surface line-clamp-2 transition-colors group-hover:text-primary">
+                        {p.title}
+                      </h4>
+                      {p.productMeta?.salePrice != null && (
+                        <p className="mt-xs font-price-lg text-body-sm text-on-surface">
+                          {formatPrice(p.productMeta.salePrice)}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+          </div>
+        </div>
+      </aside>
+    </div>
   );
 }

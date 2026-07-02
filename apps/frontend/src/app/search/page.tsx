@@ -4,6 +4,8 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Avatar } from '@/components/ui/avatar';
+import { Icon } from '@/components/ui/icon';
+import { Input } from '@/components/ui/input';
 import { PostGrid } from '@/components/post/post-grid';
 import { searchApi } from '@/lib/api';
 import { cn } from '@/lib/cn';
@@ -43,13 +45,17 @@ function SearchInner() {
   }
 
   return (
-    <div className="space-y-5 py-4">
-      <form onSubmit={submit}>
-        <input
+    <div className="mx-auto w-full max-w-[760px] space-y-5 px-4 py-lg">
+      <form onSubmit={submit} className="relative">
+        <Icon
+          name="search"
+          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant"
+        />
+        <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Tìm bài review, người dùng..."
-          className="h-11 w-full rounded-full border border-slate-300 px-5 text-sm outline-none focus:border-orange-500"
+          className="h-12 rounded-full pl-12 pr-5"
         />
       </form>
 
@@ -61,8 +67,10 @@ function SearchInner() {
                 key={t}
                 onClick={() => setTab(t)}
                 className={cn(
-                  'rounded-full px-4 py-1.5 text-sm',
-                  tab === t ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-600',
+                  'rounded-full px-4 py-1.5 text-body-sm font-medium transition',
+                  tab === t
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high',
                 )}
               >
                 {t === 'posts' ? `Bài viết (${posts.length})` : `Người dùng (${users.length})`}
@@ -71,24 +79,24 @@ function SearchInner() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-slate-400">Đang tìm...</p>
+            <p className="text-body-sm text-on-surface-variant">Đang tìm...</p>
           ) : tab === 'posts' ? (
             <PostGrid posts={posts} />
           ) : (
             <div className="space-y-2">
               {users.length === 0 ? (
-                <p className="text-sm text-slate-400">Không tìm thấy người dùng.</p>
+                <p className="text-body-sm text-on-surface-variant">Không tìm thấy người dùng.</p>
               ) : (
                 users.map((u) => (
                   <Link
                     key={u.id}
                     href={`/${u.username}`}
-                    className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:bg-slate-50"
+                    className="flex items-center gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-3 transition hover:bg-surface-container-high"
                   >
                     <Avatar src={u.avatarUrl} name={u.displayName} size={44} />
                     <div>
-                      <p className="font-semibold">{u.displayName}</p>
-                      <p className="text-xs text-slate-400">@{u.username}</p>
+                      <p className="font-semibold text-on-surface">{u.displayName}</p>
+                      <p className="text-label-caps text-on-surface-variant">@{u.username}</p>
                     </div>
                   </Link>
                 ))
@@ -103,7 +111,7 @@ function SearchInner() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="py-16 text-center text-slate-500">Đang tải...</div>}>
+    <Suspense fallback={<div className="py-16 text-center text-on-surface-variant">Đang tải...</div>}>
       <SearchInner />
     </Suspense>
   );

@@ -3,10 +3,13 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Header } from '@/components/layout/header';
 import { MobileNav } from '@/components/layout/mobile-nav';
+import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { AuthProvider } from '@/lib/auth-context';
+import { QueryProvider } from '@/components/providers/query-provider';
+import { SocketProvider } from '@/components/providers/socket-provider';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/constants';
 
-const inter = Inter({ subsets: ['latin', 'vietnamese'] });
+const inter = Inter({ subsets: ['latin', 'vietnamese'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -18,15 +21,22 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi">
-      <body className={inter.className}>
-        <AuthProvider>
-          <Header />
-          <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-6xl px-4 pb-20 pt-4 sm:pb-8">
-            {children}
-          </main>
-          <MobileNav />
-        </AuthProvider>
+    <html lang="vi" className={inter.variable}>
+      <body className={`${inter.className} bg-background text-on-background`}>
+        <QueryProvider>
+          <AuthProvider>
+            <SocketProvider>
+              {/* Top header — only on mobile/tablet */}
+              <Header />
+              {/* Desktop left sidebar */}
+              <SidebarNav />
+              {/* Main content — shifted right on desktop to clear the fixed sidebar */}
+              <main className="min-h-screen pb-20 lg:ml-[72px] lg:pb-10">{children}</main>
+              {/* Bottom nav — only on mobile */}
+              <MobileNav />
+            </SocketProvider>
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );
