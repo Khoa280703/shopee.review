@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { SocialService } from './social.service';
@@ -20,12 +20,28 @@ export class FollowsController {
   }
 
   @Get(':username/followers')
-  followers(@Param('username') username: string) {
-    return this.socialService.listFollowers(username);
+  followers(
+    @Param('username') username: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.socialService.listFollowers(
+      username,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 30,
+    );
   }
 
   @Get(':username/following')
-  following(@Param('username') username: string) {
-    return this.socialService.listFollowing(username);
+  following(
+    @Param('username') username: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.socialService.listFollowing(
+      username,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 30,
+    );
   }
 }

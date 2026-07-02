@@ -4,14 +4,25 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SocialGateway } from './social.gateway';
+
+function isUniqueViolation(e: unknown): boolean {
+  return (
+    e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002'
+  );
+}
+
+const REPLIES_PAGE_SIZE = 10;
 
 @Injectable()
 export class SocialService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly gateway: SocialGateway,
   ) {}
 
   // ---------- Follows ----------
@@ -23,22 +34,24 @@ export class SocialService {
     if (!target) throw new NotFoundException('Không tìm thấy người dùng');
     if (target.id === followerId) throw new BadRequestException('Không thể tự theo dõi chính mình');
 
-    const existing = await this.prisma.follow.findUnique({
-      where: { followerId_followingId: { followerId, followingId: target.id } },
-    });
-    if (existing) return { following: true };
-
-    await this.prisma.$transaction([
-      this.prisma.follow.create({ data: { followerId, followingId: target.id } }),
-      this.prisma.user.update({
-        where: { id: target.id },
-        data: { followersCount: { increment: 1 } },
-      }),
-      this.prisma.user.update({
-        where: { id: followerId },
-        data: { followingCount: { increment: 1 } },
-      }),
-    ]);
+    // The @@id([followerId, followingId]) constraint is the source of truth.
+    // Concurrent requests resolve via P2002 → idempotent, no double counter.
+    try {
+      await this.prisma.$transaction([
+        this.prisma.follow.create({ data: { followerId, followingId: target.id } }),
+        this.prisma.user.update({
+          where: { id: target.id },
+          data: { followersCount: { increment: 1 } },
+        }),
+        this.prisma.user.update({
+          where: { id: followerId },
+          data: { followingCount: { increment: 1 } },
+        }),
+      ]);
+    } catch (e) {
+      if (isUniqueViolation(e)) return { following: true };
+      throw e;
+    }
 
     await this.notifications.create({
       recipientId: target.id,
@@ -78,38 +91,52 @@ export class SocialService {
     return { following: false };
   }
 
-  async listFollowers(username: string) {
+  async listFollowers(username: string, page = 1, limit = 30) {
     const user = await this.prisma.user.findUnique({
       where: { username },
       select: { id: true },
     });
     if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+
+    // Offset pagination: `follows` has a composite PK and no serial id, so a
+    // monotonic cursor isn't available. page/limit is correct and adequate here.
+    const take = Math.min(Math.max(limit, 1), 50);
+    const skip = (Math.max(page, 1) - 1) * take;
     const follows = await this.prisma.follow.findMany({
       where: { followingId: user.id },
       include: {
         follower: { select: { username: true, displayName: true, avatarUrl: true, bio: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      skip,
+      take: take + 1,
     });
-    return follows.map((f) => f.follower);
+    const hasMore = follows.length > take;
+    const data = (hasMore ? follows.slice(0, take) : follows).map((f) => f.follower);
+    return { data, nextPage: hasMore ? page + 1 : null };
   }
 
-  async listFollowing(username: string) {
+  async listFollowing(username: string, page = 1, limit = 30) {
     const user = await this.prisma.user.findUnique({
       where: { username },
       select: { id: true },
     });
     if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+
+    const take = Math.min(Math.max(limit, 1), 50);
+    const skip = (Math.max(page, 1) - 1) * take;
     const follows = await this.prisma.follow.findMany({
       where: { followerId: user.id },
       include: {
         following: { select: { username: true, displayName: true, avatarUrl: true, bio: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      skip,
+      take: take + 1,
     });
-    return follows.map((f) => f.following);
+    const hasMore = follows.length > take;
+    const data = (hasMore ? follows.slice(0, take) : follows).map((f) => f.following);
+    return { data, nextPage: hasMore ? page + 1 : null };
   }
 
   // ---------- Likes ----------
@@ -120,15 +147,24 @@ export class SocialService {
     });
     if (!post) throw new NotFoundException('Không tìm thấy bài viết');
 
-    const existing = await this.prisma.like.findUnique({
-      where: { userId_postId: { userId, postId } },
-    });
-    if (existing) return { liked: true };
+    // @@id([userId, postId]) is the source of truth; P2002 → idempotent.
+    let updated: { likeCount: number };
+    try {
+      const [, post2] = await this.prisma.$transaction([
+        this.prisma.like.create({ data: { userId, postId } }),
+        this.prisma.post.update({
+          where: { id: postId },
+          data: { likeCount: { increment: 1 } },
+          select: { likeCount: true },
+        }),
+      ]);
+      updated = post2;
+    } catch (e) {
+      if (isUniqueViolation(e)) return { liked: true };
+      throw e;
+    }
 
-    await this.prisma.$transaction([
-      this.prisma.like.create({ data: { userId, postId } }),
-      this.prisma.post.update({ where: { id: postId }, data: { likeCount: { increment: 1 } } }),
-    ]);
+    this.gateway.emitLikeUpdate(postId, updated.likeCount);
 
     await this.notifications.create({
       recipientId: post.userId,
@@ -146,10 +182,16 @@ export class SocialService {
     });
     if (!existing) return { liked: false };
 
-    await this.prisma.$transaction([
+    const [, post2] = await this.prisma.$transaction([
       this.prisma.like.delete({ where: { userId_postId: { userId, postId } } }),
-      this.prisma.post.update({ where: { id: postId }, data: { likeCount: { decrement: 1 } } }),
+      this.prisma.post.update({
+        where: { id: postId },
+        data: { likeCount: { decrement: 1 } },
+        select: { likeCount: true },
+      }),
     ]);
+
+    this.gateway.emitLikeUpdate(postId, post2.likeCount);
 
     return { liked: false };
   }
@@ -181,16 +223,52 @@ export class SocialService {
       include: {
         user: { select: { username: true, displayName: true, avatarUrl: true } },
         replies: {
+          take: REPLIES_PAGE_SIZE,
+          orderBy: { id: 'asc' },
           include: {
             user: { select: { username: true, displayName: true, avatarUrl: true } },
           },
-          orderBy: { id: 'asc' },
         },
+        _count: { select: { replies: true } },
       },
     });
 
     const hasMore = comments.length > limit;
-    const data = hasMore ? comments.slice(0, limit) : comments;
+    const sliced = hasMore ? comments.slice(0, limit) : comments;
+    const data = sliced.map(({ _count, ...c }) => ({
+      ...c,
+      replyCount: _count.replies,
+    }));
+    return { data, nextCursor: hasMore ? data[data.length - 1].id : null };
+  }
+
+  async getReplies(
+    postId: number,
+    parentId: number,
+    cursor?: number,
+    limit = REPLIES_PAGE_SIZE,
+  ) {
+    // Ensure the parent actually belongs to this post (prevent cross-post enumeration).
+    const parent = await this.prisma.comment.findUnique({
+      where: { id: parentId },
+      select: { postId: true },
+    });
+    if (!parent || parent.postId !== postId) {
+      throw new NotFoundException('Không tìm thấy bình luận gốc');
+    }
+
+    const replies = await this.prisma.comment.findMany({
+      where: { postId, parentId },
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      orderBy: { id: 'asc' },
+      include: {
+        user: { select: { username: true, displayName: true, avatarUrl: true } },
+      },
+    });
+
+    const hasMore = replies.length > limit;
+    const data = hasMore ? replies.slice(0, limit) : replies;
     return { data, nextCursor: hasMore ? data[data.length - 1].id : null };
   }
 
@@ -225,6 +303,9 @@ export class SocialService {
       }),
     ]);
 
+    // Broadcast to everyone viewing the post (clients dedup by id).
+    this.gateway.emitNewComment(postId, comment);
+
     await this.notifications.create({
       recipientId: post.userId,
       type: 'COMMENT',
@@ -254,6 +335,8 @@ export class SocialService {
         data: { commentCount: { decrement: 1 + replyCount } },
       }),
     ]);
+
+    this.gateway.emitCommentDeleted(comment.postId, commentId);
 
     return { success: true };
   }

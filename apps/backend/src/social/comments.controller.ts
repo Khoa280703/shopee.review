@@ -31,6 +31,21 @@ export class CommentsController {
     );
   }
 
+  @Get('posts/:id/comments/:parentId/replies')
+  getReplies(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('parentId', ParseIntPipe) parentId: number,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.socialService.getReplies(
+      id,
+      parentId,
+      cursor ? Number(cursor) : undefined,
+      limit ? Number(limit) : 10,
+    );
+  }
+
   @Post('posts/:id/comments')
   @UseGuards(JwtAuthGuard)
   addComment(
