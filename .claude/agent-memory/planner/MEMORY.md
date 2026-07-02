@@ -1,0 +1,1 @@
+- [Frontend Design System](project_frontend-design-system.md) — Stitch tokens in tailwind.config.ts; shared UI primitives in components/ui; build = next build
