@@ -6,7 +6,10 @@ coverage/
 .env
 .env.*
 !.env.example
-uploads/
+# Uploaded user files (runtime) — not source code
+/uploads/
+apps/backend/uploads/
+!apps/backend/src/uploads/
 
 # DB backups (may contain user data) and TLS private keys — never commit.
 backups/*
