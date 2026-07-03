@@ -21,6 +21,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
+import { parseAllowedOrigins } from '../common/shopee-url';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
@@ -136,7 +137,9 @@ export class AuthController {
     @Res() res: Response,
   ): Promise<void> {
     await this.authService.googleLogin(req.user as GoogleProfile, res);
-    const frontendUrl = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:5166';
+    // FRONTEND_URL may be a comma-separated list (CORS allow-list); redirect to
+    // the first origin so a multi-origin config doesn't produce a broken URL.
+    const [frontendUrl] = parseAllowedOrigins(this.config.get<string>('FRONTEND_URL'));
     res.redirect(`${frontendUrl}/auth/callback`);
   }
 }

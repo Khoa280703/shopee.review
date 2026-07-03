@@ -1,5 +1,6 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { Prisma } from '@app/database';
 import { SocialService } from '../src/social/social.service';
 
 function makeService(prismaOverrides: Record<string, unknown>) {
@@ -67,6 +68,33 @@ describe('SocialService.react', () => {
     const { service, prisma } = makeService({});
     prisma.post.findUnique.mockResolvedValue(null);
     await expect(service.react(1, 999, 'LIKE' as never)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('is idempotent on a concurrent double-tap (P2002 on create is swallowed)', async () => {
+    const { service, prisma } = makeService({});
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2 });
+    prisma.reaction.findUnique.mockResolvedValue(null);
+    prisma.$transaction.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: '6' }),
+    );
+    // Must resolve (not 500) — the losing concurrent create is a no-op.
+    await expect(service.react(1, 1, 'LIKE' as never)).resolves.toMatchObject({ type: 'LIKE' });
+  });
+
+  it('blocks reacting when the users have blocked each other', async () => {
+    const { service, prisma, blocks } = makeService({});
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2 });
+    blocks.assertNotBlocked.mockRejectedValue(new ForbiddenException());
+    await expect(service.react(1, 1, 'LIKE' as never)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('SocialService.follow block guard', () => {
+  it('rejects following when blocked (either direction)', async () => {
+    const { service, prisma, blocks } = makeService({});
+    prisma.user = { findUnique: vi.fn().mockResolvedValue({ id: 2 }) } as never;
+    blocks.assertNotBlocked.mockRejectedValue(new ForbiddenException());
+    await expect(service.follow(1, 'bob')).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
 

@@ -16,6 +16,12 @@ function isUniqueViolation(e: unknown): boolean {
   );
 }
 
+function isNotFound(e: unknown): boolean {
+  return (
+    e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025'
+  );
+}
+
 const REPLIES_PAGE_SIZE = 10;
 
 @Injectable()
@@ -35,6 +41,9 @@ export class SocialService {
     });
     if (!target) throw new NotFoundException('Không tìm thấy người dùng');
     if (target.id === followerId) throw new BadRequestException('Không thể tự theo dõi chính mình');
+    // A blocked user (either direction) must not be able to re-follow — else
+    // block is bypassable and becomes a notification-spam vector.
+    await this.blocks.assertNotBlocked(followerId, target.id);
 
     // The @@id([followerId, followingId]) constraint is the source of truth.
     // Concurrent requests resolve via P2002 → idempotent, no double counter.
@@ -170,23 +179,35 @@ export class SocialService {
 
     let reacted: ReactionType | null;
     if (!existing) {
-      await this.prisma.$transaction([
-        this.prisma.reaction.create({ data: { userId, postId, type } }),
-        this.prisma.post.update({ where: { id: postId }, data: { likeCount: { increment: 1 } } }),
-      ]);
+      // Concurrent double-tap: two requests both see no existing reaction; the
+      // second create hits the PK (P2002). Swallow → idempotent (counter stays
+      // correct because only the first create+increment committed).
+      try {
+        await this.prisma.$transaction([
+          this.prisma.reaction.create({ data: { userId, postId, type } }),
+          this.prisma.post.update({ where: { id: postId }, data: { likeCount: { increment: 1 } } }),
+        ]);
+        await this.notifications.create({
+          recipientId: post.userId,
+          type: 'LIKE',
+          actorId: userId,
+          postId,
+        });
+      } catch (e) {
+        if (!isUniqueViolation(e)) throw e;
+      }
       reacted = type;
-      await this.notifications.create({
-        recipientId: post.userId,
-        type: 'LIKE',
-        actorId: userId,
-        postId,
-      });
     } else if (existing.type === type) {
-      // Same reaction → remove (toggle off).
-      await this.prisma.$transaction([
-        this.prisma.reaction.delete({ where: { userId_postId: { userId, postId } } }),
-        this.prisma.post.update({ where: { id: postId }, data: { likeCount: { decrement: 1 } } }),
-      ]);
+      // Same reaction → remove (toggle off). A concurrent second toggle deletes
+      // an already-deleted row (P2025) → treat as idempotent no-op.
+      try {
+        await this.prisma.$transaction([
+          this.prisma.reaction.delete({ where: { userId_postId: { userId, postId } } }),
+          this.prisma.post.update({ where: { id: postId }, data: { likeCount: { decrement: 1 } } }),
+        ]);
+      } catch (e) {
+        if (!isNotFound(e)) throw e;
+      }
       reacted = null;
     } else {
       // Switch type — total unchanged.
@@ -250,7 +271,9 @@ export class SocialService {
       where: { userId },
       take: limit + 1,
       ...(cursor ? { cursor: { userId_postId: { userId, postId: cursor } }, skip: 1 } : {}),
-      orderBy: { createdAt: 'desc' },
+      // Secondary sort by postId gives a total order so keyset pagination is
+      // stable even when two bookmarks share the same createdAt millisecond.
+      orderBy: [{ createdAt: 'desc' }, { postId: 'desc' }],
       include: {
         post: {
           include: {

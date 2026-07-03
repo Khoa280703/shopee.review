@@ -31,8 +31,11 @@ export class AdminService {
   }
 
   /**
-   * Ban a user: set bannedAt + bump tokenVersion so every live session (HTTP and
-   * WebSocket) is killed immediately. Cannot ban yourself or another admin.
+   * Ban a user: set bannedAt + bump tokenVersion. All HTTP requests are rejected
+   * immediately (JwtStrategy re-checks per request); an already-open WebSocket is
+   * rejected on its next (re)connect, not force-disconnected mid-session — WS rooms
+   * are public read-only broadcast, so no privileged data leaks in the interim.
+   * Cannot ban yourself or another admin.
    */
   async ban(adminId: number, targetId: number) {
     if (adminId === targetId) throw new BadRequestException('Không thể tự khóa chính mình');

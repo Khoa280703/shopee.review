@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ReportStatus, ReportTargetType } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
@@ -59,10 +59,18 @@ export class ReportsService {
   }
 
   async resolve(id: number, status: ReportStatus, adminId: number) {
-    await this.prisma.report.update({
-      where: { id },
-      data: { status, resolvedBy: adminId },
-    });
+    try {
+      await this.prisma.report.update({
+        where: { id },
+        data: { status, resolvedBy: adminId },
+      });
+    } catch (e) {
+      // Missing report id → 404 instead of an unhandled 500.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        throw new NotFoundException('Không tìm thấy báo cáo');
+      }
+      throw e;
+    }
     return { success: true };
   }
 }
