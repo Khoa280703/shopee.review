@@ -216,6 +216,54 @@ export const statsApi = {
     apiFetch<ClickChart>(`/users/me/clicks/chart?period=${period}`),
 };
 
+// ---------- Moderation ----------
+export type ReportTargetType = 'POST' | 'COMMENT' | 'USER';
+export type ReportReason = 'SPAM' | 'SCAM' | 'OFFENSIVE' | 'FAKE' | 'OTHER';
+
+export const moderationApi = {
+  report: (targetType: ReportTargetType, targetId: number, reason: ReportReason, detail?: string) =>
+    apiFetch<{ success: boolean }>('/reports', {
+      method: 'POST',
+      body: JSON.stringify({ targetType, targetId, reason, detail }),
+    }),
+  block: (username: string) =>
+    apiFetch<{ blocked: boolean }>(`/users/${username}/block`, { method: 'POST' }),
+  unblock: (username: string) =>
+    apiFetch<{ blocked: boolean }>(`/users/${username}/block`, { method: 'DELETE' }),
+  listBlocked: () =>
+    apiFetch<{ username: string; displayName: string; avatarUrl: string | null }[]>('/me/blocks'),
+};
+
+// ---------- Admin ----------
+export interface AdminReport {
+  id: number;
+  targetType: ReportTargetType;
+  targetId: number;
+  reason: ReportReason;
+  detail: string | null;
+  status: 'PENDING' | 'RESOLVED' | 'DISMISSED';
+  createdAt: string;
+  reporter: { username: string; displayName: string };
+}
+
+export const adminApi = {
+  listReports: (status = 'PENDING') =>
+    apiFetch<AdminReport[]>(`/admin/reports?status=${status}`),
+  resolveReport: (id: number, status: 'RESOLVED' | 'DISMISSED') =>
+    apiFetch<{ success: boolean }>(`/admin/reports/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+  deletePost: (id: number) =>
+    apiFetch<{ success: boolean }>(`/admin/posts/${id}`, { method: 'DELETE' }),
+  deleteComment: (id: number) =>
+    apiFetch<{ success: boolean }>(`/admin/comments/${id}`, { method: 'DELETE' }),
+  banUser: (id: number) =>
+    apiFetch<{ success: boolean }>(`/admin/users/${id}/ban`, { method: 'POST' }),
+  unbanUser: (id: number) =>
+    apiFetch<{ success: boolean }>(`/admin/users/${id}/unban`, { method: 'POST' }),
+};
+
 // ---------- Search ----------
 export const searchApi = {
   query: (q: string, type: 'all' | 'posts' | 'users' = 'all', isServer = false) =>

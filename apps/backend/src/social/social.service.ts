@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BlocksService } from '../moderation/blocks.service';
 import { SocialGateway } from './social.gateway';
 
 function isUniqueViolation(e: unknown): boolean {
@@ -23,6 +24,7 @@ export class SocialService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly gateway: SocialGateway,
+    private readonly blocks: BlocksService,
   ) {}
 
   // ---------- Follows ----------
@@ -279,6 +281,9 @@ export class SocialService {
     });
     if (!post) throw new NotFoundException('Không tìm thấy bài viết');
 
+    // A blocked user (either direction) can't comment on the author's post.
+    await this.blocks.assertNotBlocked(userId, post.userId);
+
     if (parentId) {
       const parent = await this.prisma.comment.findUnique({
         where: { id: parentId },
@@ -325,18 +330,33 @@ export class SocialService {
     if (comment.userId !== userId) {
       throw new ForbiddenException('Bạn không có quyền xóa bình luận này');
     }
+    return this.deleteCommentCore(comment.id, comment.postId);
+  }
 
+  /** Admin deletion — no ownership check (caller is behind AdminGuard). */
+  async adminDeleteComment(commentId: number) {
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { id: true, postId: true },
+    });
+    if (!comment) throw new NotFoundException('Không tìm thấy bình luận');
+    return this.deleteCommentCore(comment.id, comment.postId);
+  }
+
+  // Shared deletion side-effects (delete + counter decrement incl. replies +
+  // broadcast). Ownership enforced by callers, not a bypass flag.
+  private async deleteCommentCore(commentId: number, postId: number) {
     const replyCount = await this.prisma.comment.count({ where: { parentId: commentId } });
 
     await this.prisma.$transaction([
       this.prisma.comment.delete({ where: { id: commentId } }),
       this.prisma.post.update({
-        where: { id: comment.postId },
+        where: { id: postId },
         data: { commentCount: { decrement: 1 + replyCount } },
       }),
     ]);
 
-    this.gateway.emitCommentDeleted(comment.postId, commentId);
+    this.gateway.emitCommentDeleted(postId, commentId);
 
     return { success: true };
   }

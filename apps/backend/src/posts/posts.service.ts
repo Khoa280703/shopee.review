@@ -300,6 +300,23 @@ export class PostsService {
 
   async remove(userId: number, postId: number) {
     await this.assertOwner(userId, postId);
+    await this.deletePost(postId);
+  }
+
+  /** Admin deletion — no ownership check (caller is behind AdminGuard). */
+  async adminRemovePost(postId: number) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true },
+    });
+    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    await this.deletePost(postId);
+    return { success: true };
+  }
+
+  // Shared deletion side-effects (delete row + search-index sync). Ownership is
+  // enforced by callers, NOT by a bypass flag (avoids a boolean IDOR trap).
+  private async deletePost(postId: number) {
     await this.prisma.post.delete({ where: { id: postId } });
     void this.syncSearchIndex('delete', postId);
   }

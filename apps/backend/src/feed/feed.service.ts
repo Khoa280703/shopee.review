@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { PrismaService } from '../prisma/prisma.service';
+import { BlocksService } from '../moderation/blocks.service';
 
 // Short TTL: feed is personalized + write-heavy, so 30s smooths bursty reads
 // (the WHERE EXISTS follow subquery is the expensive part) without going stale.
@@ -12,6 +13,7 @@ export class FeedService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
+    private readonly blocks: BlocksService,
   ) {}
 
   async getFeed(userId: number, cursor?: number, limit = 20) {
@@ -25,8 +27,13 @@ export class FeedService {
   }
 
   private async queryFeed(userId: number, cursor?: number, limit = 20) {
+    // Exclude posts by users blocked either direction (feed cache is per-user).
+    const blockedIds = await this.blocks.getBlockedUserIds(userId);
     const posts = await this.prisma.post.findMany({
-      where: { user: { followers: { some: { followerId: userId } } } },
+      where: {
+        user: { followers: { some: { followerId: userId } } },
+        ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
+      },
       include: {
         user: { select: { username: true, displayName: true, avatarUrl: true } },
         category: true,

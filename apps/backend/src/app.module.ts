@@ -10,6 +10,8 @@ import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 import { AuthModule } from './auth/auth.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
+import { BlocksModule } from './moderation/blocks.module';
+import { ModerationModule } from './moderation/moderation.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { CategoriesModule } from './categories/categories.module';
 import { HealthController } from './health.controller';
@@ -91,6 +93,8 @@ import { UsersModule } from './users/users.module';
     UploadsModule,
     MetricsModule,
     MaintenanceModule,
+    BlocksModule,
+    ModerationModule,
   ],
   controllers: [HealthController],
   providers: [

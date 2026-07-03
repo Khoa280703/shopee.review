@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { buttonClasses } from '@/components/ui/button-classes';
-import { authApi, uploadImage, usersApi } from '@/lib/api';
+import { authApi, moderationApi, uploadImage, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 export default function SettingsPage() {
@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState('');
   const [pwMessage, setPwMessage] = useState<string | null>(null);
   const [changingPw, setChangingPw] = useState(false);
+  const [blocked, setBlocked] = useState<{ username: string; displayName: string }[]>([]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -36,8 +37,14 @@ export default function SettingsPage() {
       setBio(user.bio ?? '');
       setAvatarUrl(user.avatarUrl ?? '');
       setAffiliateId(user.affiliateId ?? '');
+      moderationApi.listBlocked().then(setBlocked).catch(() => undefined);
     }
   }, [user, loading, router]);
+
+  async function unblock(username: string) {
+    await moderationApi.unblock(username);
+    setBlocked((prev) => prev.filter((b) => b.username !== username));
+  }
 
   async function onAvatar(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -158,6 +165,29 @@ export default function SettingsPage() {
           {changingPw ? 'Đang đổi...' : 'Đổi mật khẩu'}
         </Button>
       </form>
+
+      <div className="mt-10 rounded-xl border border-outline-variant p-4">
+        <h2 className="font-title-md text-title-md font-semibold text-on-surface">Người dùng đã chặn</h2>
+        {blocked.length === 0 ? (
+          <p className="mt-2 text-body-sm text-on-surface-variant">Bạn chưa chặn ai.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {blocked.map((b) => (
+              <li key={b.username} className="flex items-center justify-between">
+                <span className="text-body-md text-on-surface">
+                  {b.displayName} <span className="text-on-surface-variant">@{b.username}</span>
+                </span>
+                <button
+                  onClick={() => void unblock(b.username)}
+                  className="rounded-full border border-outline-variant px-3 py-1 text-body-sm text-on-surface hover:bg-surface-container"
+                >
+                  Bỏ chặn
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <div className="mt-10 rounded-xl border border-error/40 bg-error/5 p-4">
         <h2 className="font-title-md text-title-md font-semibold text-error">Vùng nguy hiểm</h2>

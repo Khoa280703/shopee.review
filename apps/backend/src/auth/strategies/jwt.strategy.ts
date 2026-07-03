@@ -54,6 +54,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if ((payload.ver ?? 0) !== tokenVersion) {
       throw new UnauthorizedException('Phiên đăng nhập đã hết hạn');
     }
+    if (authUser.bannedAt) {
+      throw new UnauthorizedException('Tài khoản đã bị khóa');
+    }
     return authUser;
   }
 }

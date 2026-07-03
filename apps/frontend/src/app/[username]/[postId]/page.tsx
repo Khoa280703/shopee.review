@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon';
 import { CommentsSection } from '@/components/social/comments-section';
 import { LikeButton } from '@/components/social/like-button';
 import { FollowButton } from '@/components/social/follow-button';
+import { ReportButton } from '@/components/moderation/report-button';
 import { clickRedirectUrl, resolveAssetUrl, SITE_NAME } from '@/lib/constants';
 import { formatNumber, formatPrice, timeAgo } from '@/lib/format';
 import type { Post } from '@/types';
@@ -182,6 +183,9 @@ export default async function PostDetailPage({
               <Icon name="ads_click" className="text-lg" />
               <span className="font-body-sm text-body-sm">{formatNumber(post.clickCount)}</span>
             </span>
+            <div className="ml-auto">
+              <ReportButton targetType="POST" targetId={post.id} label="Báo cáo" />
+            </div>
           </div>
         </article>
 

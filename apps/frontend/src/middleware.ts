@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const PROTECTED = ['/create', '/feed', '/dashboard', '/settings', '/notifications'];
+const PROTECTED = ['/create', '/feed', '/dashboard', '/settings', '/notifications', '/admin'];
 
 // JWT_SECRET is server-only (NOT NEXT_PUBLIC). Must match the backend's secret
 // so the middleware can validate the same HS256 token set by AuthService.
@@ -47,5 +47,6 @@ export const config = {
     '/dashboard/:path*',
     '/settings/:path*',
     '/notifications/:path*',
+    '/admin/:path*',
   ],
 };

@@ -48,14 +48,13 @@ export class SocialGateway
         ver?: number;
       }>(token);
       // The gateway verifies tokens directly (not via JwtStrategy), so it must
-      // replicate the revocation check — otherwise a revoked user keeps a live
-      // WebSocket. (Phase 5 adds the bannedAt check here too.) Anonymous
-      // (read-only) on any failure.
+      // replicate the revocation + ban checks — otherwise a revoked/banned user
+      // keeps a live WebSocket. Anonymous (read-only) on any failure.
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
-        select: { tokenVersion: true },
+        select: { tokenVersion: true, bannedAt: true },
       });
-      if (!user || (payload.ver ?? 0) !== user.tokenVersion) {
+      if (!user || user.bannedAt || (payload.ver ?? 0) !== user.tokenVersion) {
         return;
       }
       client.data.userId = payload.sub;

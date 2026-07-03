@@ -100,7 +100,7 @@ describe('SocialService follower pagination', () => {
       user: { findUnique: vi.fn().mockResolvedValue({ id: 1 }) },
       follow: { findMany: vi.fn().mockResolvedValue(rows) },
     };
-    const service = new SocialService(prisma as never, {} as never, {} as never);
+    const service = new SocialService(prisma as never, {} as never, {} as never, {} as never);
 
     const res = await service.listFollowers('bob', 1, 30);
     expect(res.data).toHaveLength(30);
@@ -115,7 +115,7 @@ describe('SocialService follower pagination', () => {
       user: { findUnique: vi.fn().mockResolvedValue({ id: 1 }) },
       follow: { findMany: vi.fn().mockResolvedValue(rows) },
     };
-    const service = new SocialService(prisma as never, {} as never, {} as never);
+    const service = new SocialService(prisma as never, {} as never, {} as never, {} as never);
 
     const res = await service.listFollowing('bob', 1, 30);
     expect(res.data).toHaveLength(5);

@@ -19,6 +19,26 @@ enum NotificationType {
   NEW_POST
 }
 
+enum ReportReason {
+  SPAM
+  SCAM
+  OFFENSIVE
+  FAKE
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportTargetType {
+  POST
+  COMMENT
+  USER
+}
+
 model User {
   id              Int       @id @default(autoincrement())
   username        String    @unique @db.VarChar(50)
@@ -39,6 +59,8 @@ model User {
   totalClicks     Int       @default(0) @map("total_clicks")
   followersCount  Int       @default(0) @map("followers_count")
   followingCount  Int       @default(0) @map("following_count")
+  isAdmin         Boolean   @default(false) @map("is_admin")
+  bannedAt        DateTime? @map("banned_at")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
@@ -49,6 +71,9 @@ model User {
   following          Follow[]       @relation("Follower")
   notifications      Notification[] @relation("Recipient")
   actedNotifications Notification[] @relation("Actor")
+  reports            Report[]       @relation("Reporter")
+  blocking           Block[]        @relation("Blocker")
+  blockedBy          Block[]        @relation("Blocked")
 
   @@map("users")
 }
@@ -177,6 +202,37 @@ model Category {
   posts Post[]
 
   @@map("categories")
+}
+
+model Report {
+  id         Int              @id @default(autoincrement())
+  reporterId Int              @map("reporter_id")
+  targetType ReportTargetType @map("target_type")
+  targetId   Int              @map("target_id") // post/comment/user id per targetType (polymorphic, no FK)
+  reason     ReportReason
+  detail     String?          @db.VarChar(500)
+  status     ReportStatus     @default(PENDING)
+  resolvedBy Int?             @map("resolved_by")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  reporter User @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, targetType, targetId]) // idempotent reporting
+  @@index([status, createdAt])
+  @@map("reports")
+}
+
+model Block {
+  blockerId Int      @map("blocker_id")
+  blockedId Int      @map("blocked_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("blocks")
 }
 
 model ScrapedProduct {

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Avatar } from '@/components/ui/avatar';
 import { FollowButton } from '@/components/social/follow-button';
+import { BlockButton } from '@/components/moderation/block-button';
+import { ReportButton } from '@/components/moderation/report-button';
 import { usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatNumber } from '@/lib/format';
@@ -31,7 +33,11 @@ export function UserProfileHeader({ profile }: { profile: UserProfile }) {
       Chỉnh sửa
     </Link>
   ) : (
-    <FollowButton username={profile.username} initialFollowing={following} />
+    <div className="flex items-center gap-2">
+      <FollowButton username={profile.username} initialFollowing={following} />
+      <BlockButton username={profile.username} />
+      <ReportButton targetType="USER" targetId={profile.id} />
+    </div>
   );
 
   return (

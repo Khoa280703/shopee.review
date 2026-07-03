@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { BlocksModule } from '../moderation/blocks.module';
 import { CommentsController } from './comments.controller';
 import { FollowsController } from './follows.controller';
 import { LikesController } from './likes.controller';
@@ -13,6 +14,7 @@ import { SocialService } from './social.service';
   imports: [
     PrismaModule,
     NotificationsModule,
+    BlocksModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

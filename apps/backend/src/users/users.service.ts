@@ -22,21 +22,39 @@ export class UsersService {
   async findByUsername(username: string, viewerId?: number) {
     const user = await this.prisma.user.findUnique({
       where: { username },
-      select: { ...PUBLIC_PROFILE_SELECT, _count: { select: { posts: true } } },
+      select: {
+        ...PUBLIC_PROFILE_SELECT,
+        bannedAt: true,
+        _count: { select: { posts: true } },
+      },
     });
-    if (!user) {
+    // Banned users' profiles are hidden (404). Self can still see own profile.
+    if (!user || (user.bannedAt && user.id !== viewerId)) {
       throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     let isFollowing = false;
     if (viewerId && viewerId !== user.id) {
+      // A block either direction hides the profile from the viewer.
+      const blocked = await this.prisma.block.findFirst({
+        where: {
+          OR: [
+            { blockerId: viewerId, blockedId: user.id },
+            { blockerId: user.id, blockedId: viewerId },
+          ],
+        },
+        select: { blockerId: true },
+      });
+      if (blocked) {
+        throw new NotFoundException('Không tìm thấy người dùng');
+      }
       const follow = await this.prisma.follow.findUnique({
         where: { followerId_followingId: { followerId: viewerId, followingId: user.id } },
       });
       isFollowing = Boolean(follow);
     }
 
-    const { _count, ...rest } = user;
+    const { _count, bannedAt: _bannedAt, ...rest } = user;
     return { ...rest, totalPosts: _count.posts, isFollowing, isSelf: viewerId === user.id };
   }
 

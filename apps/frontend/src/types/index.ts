@@ -69,6 +69,7 @@ export interface AuthUser {
   totalClicks: number;
   followersCount: number;
   followingCount: number;
+  isAdmin?: boolean;
   createdAt: string;
 }
 
