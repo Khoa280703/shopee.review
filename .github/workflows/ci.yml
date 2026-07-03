@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Type-check, unit tests (mocked Prisma — no DB), and full build.
+  build-and-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm --filter @app/database build
+      - run: pnpm --filter @app/backend typecheck
+      - run: pnpm --filter @app/frontend typecheck
+      - run: pnpm --filter @app/backend test
+      - run: pnpm build
+        env:
+          # NEXT_PUBLIC_* are inlined at build; localhost fallbacks are fine for CI.
+          NEXT_PUBLIC_API_URL: http://localhost:3066/api
+
+  # Integration checks that need a real database: migrations apply cleanly and
+  # the likes→reactions rename preserves data / leaves no drift.
+  integration-db:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shopee_review
+          POSTGRES_PASSWORD: shopee_review_dev
+          POSTGRES_DB: shopee_review
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shopee_review"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://shopee_review:shopee_review_dev@localhost:5432/shopee_review
+      DIRECT_URL: postgresql://shopee_review:shopee_review_dev@localhost:5432/shopee_review
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @app/database exec prisma migrate deploy
+      - run: pnpm --filter @app/database exec prisma generate
+      # No-drift guard: the schema must match the migrated database exactly
+      # (catches an un-renamed constraint from the reactions migration).
+      - run: pnpm exec prisma migrate diff --exit-code --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma
+        working-directory: packages/database

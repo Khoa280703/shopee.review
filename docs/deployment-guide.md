@@ -1,110 +1,297 @@
 # Deployment Guide
 
-## Coolify Services
+## Overview
 
-- `shopee-review-postgres`: PostgreSQL 16 database service, private networking only.
-- `shopee-review-api`: Dockerfile `apps/backend/Dockerfile`, port `3001`, volume `/app/uploads`.
-- `shopee-review-web`: Dockerfile `apps/frontend/Dockerfile`, port `3000`.
+Production deployment runs on Coolify with Traefik managing Let's Encrypt TLS, Nginx as the single entrypoint for rate-limiting and routing, and Docker Compose orchestrating the full stack (PostgreSQL, pgBouncer, Redis, Meilisearch, backend, frontend, certbot).
 
-## API Environment
+## Docker Compose Stack
 
-```env
-NODE_ENV=production
-PORT=3001
-DATABASE_URL=postgresql://shopee_review:<password>@<coolify-postgres-host>:5432/shopee_review
-JWT_SECRET=<strong-random-min-32-chars>
-ADMIN_PASSWORD=<strong-admin-password>
-SHOPEE_AFFILIATE_ID=<affiliate-id>
-FRONTEND_URL=https://shopee.review
-UPLOAD_DIR=uploads
+```bash
+# Start all services (db, pgbouncer, redis, meilisearch, backend, frontend, nginx, certbot, db-backup)
+docker compose up -d
+
+# View logs
+docker compose logs -f backend  # or frontend, nginx, etc.
+
+# Bring down
+docker compose down
 ```
 
-## Web Environment
+**Key services:**
+
+| Service | Image | Port | Role |
+|---------|-------|------|------|
+| `db` | postgres:16-alpine | 5432 | Main database (health-checked) |
+| `pgbouncer` | edoburu/pgbouncer | 6432 | Connection pooling (transaction mode, 10 default, 5 min, 100 max client conn) |
+| `redis` | redis:7.2-alpine | 6379 | Cache, BullMQ, Socket.io, SSE pub/sub; **512mb, noeviction** |
+| `meilisearch` | getmeili/meilisearch:v1.10 | 7700 | Full-text search (512mb limit) |
+| `backend` | From Dockerfile | 3066 | NestJS API |
+| `frontend` | From Dockerfile | 3000 | Next.js 15 frontend |
+| `nginx` | nginx:1.27-alpine | 8081 | Rate-limit, route, microcache |
+| `certbot` | certbot/certbot | — | Let's Encrypt renewal (webroot mode) |
+| `db-backup` | prodrigestivill/postgres-backup-local:16 | — | Daily gzip dumps to ./backups |
+
+## Environment Configuration
+
+Root `.env` file (checked into version control but **DO NOT commit secrets**):
+
+### Database & Pooling
 
 ```env
-NEXT_PUBLIC_API_URL=https://shopee.review/api
-API_INTERNAL_URL=http://<api-service-internal-host>:3001/api
+# Host dev: direct to Postgres. Docker/prod: point DATABASE_URL at pgBouncer.
+DATABASE_URL=postgresql://shopee_review:shopee_review_dev@pgbouncer:6432/shopee_review?pgbouncer=true&connection_limit=1
+# Non-pooled for migrations (Prisma directUrl). Always points to Postgres.
+DIRECT_URL=postgresql://shopee_review:shopee_review_dev@db:5432/shopee_review
 ```
 
-If the internal API hostname is not available yet, use `https://shopee.review/api` for both values.
+### Ports & TLS
 
-## Traefik Routing
+```env
+PORT=3066                      # Backend port
+DOMAIN=shopee.review           # Traefik domain (production)
+COOKIE_SECURE=true             # HTTPS only (set to false for HTTP dev)
+CERTBOT_EMAIL=admin@example.com # Let's Encrypt notifications
+```
 
-- `Host(shopee.review) && PathPrefix(/api)` -> API service port `3001`.
-- `Host(shopee.review)` -> Web service port `3000`.
-- Give `/api` route higher priority than `/`.
+### Frontend/API URLs
 
-## Cloudflare
+```env
+FRONTEND_URL=https://shopee.review              # What backend sees as trusted origin (CORS)
+NEXT_PUBLIC_API_URL=https://shopee.review/api   # Browser-visible API URL
+API_INTERNAL_URL=http://backend:3066/api        # Backend→frontend SSR calls (internal compose network)
+```
 
-- DNS A record for `shopee.review` points to home server public IP, proxied.
-- SSL mode: Full strict if Traefik origin cert exists, otherwise Full.
-- Do not cache `/api/admin/*`.
+### Authentication
 
-## Cloudflare R2 (Image Uploads)
+```env
+JWT_SECRET=<random-32+-chars>
+ADMIN_BOOTSTRAP_USERNAME=your_username_here     # Comma-separated; idempotent on boot, no self-promotion UI
+```
 
-Image uploads are stored in Cloudflare R2 via the S3-compatible API. The backend
-(`apps/backend/src/uploads/r2-upload.service.ts`) is fully env-driven: when the
-R2 variables below are absent it rejects uploads with a clear 500 and logs a
-warning, so the only setup required is populating these values.
+### Google OAuth
 
-### Steps
+```env
+GOOGLE_CLIENT_ID=<from Google Console>
+GOOGLE_CLIENT_SECRET=<from Google Console>
+GOOGLE_CALLBACK_URL=https://shopee.review/api/auth/google/callback
+```
 
-1. **Create a bucket** in the Cloudflare dashboard → R2 → *Create bucket*
-   (e.g. `shopee-review-uploads`).
+### Email (Resend)
+
+```env
+RESEND_API_KEY=<from Resend dashboard>
+MAIL_FROM=shopee.review <onboarding@resend.dev>  # Display sender (Resend sandbox: onboarding@resend.dev)
+```
+
+### Cloudflare R2 (Image Uploads)
+
+```env
+CLOUDFLARE_ACCOUNT_ID=<your account ID>
+R2_ACCESS_KEY_ID=<API token access key>
+R2_SECRET_ACCESS_KEY=<API token secret>
+R2_BUCKET_NAME=shopee-review-uploads
+R2_PUBLIC_URL=https://pub-<hash>.r2.dev         # Or custom domain; no trailing slash
+```
+
+When R2 env vars are absent, uploads reject with a clear 500 error and log a warning (safe to leave empty in non-prod).
+
+### Scraper & Affiliate
+
+```env
+SHOPEE_AFFILIATE_ID=                            # Optional. If unset, scrape degrades to product URL as affiliate link.
+```
+
+### Monitoring & Observability
+
+```env
+REDIS_URL=redis://redis:6379                    # Required for BullMQ + Socket.io in Docker/prod
+MEILI_HOST=http://meilisearch:7700              # Meilisearch search engine
+MEILI_MASTER_KEY=masterKeyChangeMe              # Change this!
+ADMIN_TOKEN=<random-token>                      # Bull Board dashboard auth
+SENTRY_DSN=<backend project DSN>                # Error tracking (no-op if unset)
+NEXT_PUBLIC_SENTRY_DSN=<frontend project DSN>   # Frontend error tracking
+LOG_LEVEL=info                                  # trace|debug|info|warn|error (empty = default per NODE_ENV)
+GRAFANA_PASSWORD=<strong password>              # For docker-compose.monitoring.yml
+```
+
+## First-Admin Bootstrap
+
+On backend startup, any username in `ADMIN_BOOTSTRAP_USERNAME` is granted `is_admin = true` (idempotent):
+
+```env
+ADMIN_BOOTSTRAP_USERNAME=alice,bob
+```
+
+- If the user doesn't exist, they are created with `is_admin = true` and email unverified.
+- If the user exists, `is_admin` is set to true (one-time setup per app lifetime).
+- **No self-promotion UI** — you must set this env var once and restart the backend.
+
+## Cloudflare R2 Setup
+
+1. **Create a bucket** in Cloudflare dashboard → R2 → *Create bucket* (e.g., `shopee-review-uploads`).
 2. **Create an API token**: R2 → *Manage R2 API Tokens* → *Create API Token*.
-   - Permission: **Object Read & Write**, scoped to the single bucket (least privilege).
-   - This yields an **Access Key ID** and **Secret Access Key**.
-3. **Get the Account ID**: shown on the R2 overview page (right sidebar).
-4. **Enable a public URL** for the bucket: bucket → *Settings* → *Public access*.
-   - Use the provided `https://pub-<hash>.r2.dev` dev URL, **or** attach a custom
-     domain. If you use a **custom domain**, add its hostname to
-     `images.remotePatterns` in `apps/frontend/next.config.ts`.
+   - Permission: **Object Read & Write**, scope to this bucket only.
+   - Copy **Access Key ID** and **Secret Access Key**.
+3. **Get Account ID** from R2 overview page (right sidebar).
+4. **Enable public access**: Bucket → *Settings* → *Public access* → Note the `https://pub-<hash>.r2.dev` URL.
+5. **Optional custom domain**: Attach a custom domain (e.g., `images.shopee.review`); then add it to `next.config.ts`'s `remotePatterns`.
 
-### Env var mapping
-
-| Variable | Where | Notes |
-|----------|-------|-------|
-| `CLOUDFLARE_ACCOUNT_ID` | API | **Required** — S3 client is null without it |
-| `R2_ACCESS_KEY_ID` | API | From the API token |
-| `R2_SECRET_ACCESS_KEY` | API | From the API token |
-| `R2_BUCKET_NAME` | API | e.g. `shopee-review-uploads` |
-| `R2_PUBLIC_URL` | API | Public/dev URL or custom domain (no trailing slash) |
-
-The frontend's `next.config.ts` already allow-lists `**.r2.dev` and
-`**.r2.cloudflarestorage.com`. Confirm `R2_PUBLIC_URL`'s host matches one of the
-configured patterns (add a pattern for custom domains).
-
-## Sentry (Error Tracking)
-
-Both apps integrate Sentry and are **no-ops when the DSN is unset**, so local dev
-and non-configured environments are unaffected.
-
-- Backend: `@sentry/nestjs`, initialised in `apps/backend/src/instrument.ts`
-  (imported first in `main.ts`). Reads `SENTRY_DSN`.
-- Frontend: `@sentry/nextjs`, configured via `instrumentation.ts`,
-  `instrumentation-client.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`,
-  and `withSentryConfig` in `next.config.ts`. Reads `NEXT_PUBLIC_SENTRY_DSN`.
-
-### Env vars
-
+Set env vars:
 ```env
-SENTRY_DSN=<backend project dsn>
-NEXT_PUBLIC_SENTRY_DSN=<frontend project dsn>
-# Optional — only for uploading source maps during frontend prod builds:
-SENTRY_ORG=<org-slug>
+CLOUDFLARE_ACCOUNT_ID=<account-id>
+R2_ACCESS_KEY_ID=<access-key>
+R2_SECRET_ACCESS_KEY=<secret>
+R2_BUCKET_NAME=shopee-review-uploads
+R2_PUBLIC_URL=https://pub-xxx.r2.dev
+```
+
+Frontend's `next.config.ts` already allows `**.r2.dev` and `**.r2.cloudflarestorage.com`. For custom domains, add a pattern.
+
+## Sentry Error Tracking
+
+Both backend and frontend integrate Sentry and are no-ops when DSNs are unset (so dev/non-configured environments are unaffected).
+
+- **Backend**: `@sentry/nestjs`, initialized in `apps/backend/src/instrument.ts` (imported first in `main.ts`). Reads `SENTRY_DSN`.
+- **Frontend**: `@sentry/nextjs`, configured via multiple files and `withSentryConfig` in `next.config.ts`. Reads `NEXT_PUBLIC_SENTRY_DSN`.
+
+Env vars:
+```env
+SENTRY_DSN=<backend project DSN>
+NEXT_PUBLIC_SENTRY_DSN=<frontend project DSN>
+SENTRY_ORG=<org-slug>           # Only for source map uploads during prod builds
 SENTRY_PROJECT=<project-slug>
 SENTRY_AUTH_TOKEN=<token>
 ```
 
-PII scrubbing is on by default (`sendDefaultPii: false`; cookies/auth headers
-stripped in `beforeSend`).
+PII scrubbing is on by default (cookies, auth headers stripped in `beforeSend`).
 
-## Verification
+## Nginx Configuration
+
+Single entrypoint for rate-limiting, microcaching, WebSocket proxying, and routing.
+
+**Rate-limiting zones** (per client IP):
+- General API (`/api/*`): 10/s
+- Auth endpoints (`/api/auth/*`): 5/m
+- Upload endpoint (`/api/uploads/*`): 2/s
+- WebSocket (`/socket.io/*`): 100/s
+
+**Special routes:**
+
+| Route | Target | Notes |
+|-------|--------|-------|
+| `/.well-known/acme-challenge/*` | Local webroot | Let's Encrypt validation (no redirect, plain HTTP) |
+| `/socket.io/*` | Backend:3066 | WebSocket, no buffering |
+| `/api/notifications/stream` | Backend:3066 | SSE, no buffering, 1h timeout |
+| `/api/auth/*` | Backend:3066 | Strict rate-limit (5/m) |
+| `/api/uploads/*` | Backend:3066 | Upload rate-limit, 12MB body limit |
+| `/api/*` | Backend:3066 | General API, 2s microcache for unauthenticated GET |
+| `/admin/queues` | Backend:3066 | Bull Board dashboard (auth enforced in app) |
+| `/r/:postId` | Backend:3066 | Click tracking redirect |
+| `/metrics` | Backend:3066 | Prometheus metrics (restricted to private IPs: 127.0.0.1, 172.16.0.0/12, 10.0.0.0/8) |
+| `/_next/static/*` | Frontend:3000 | Next.js static (long cache: 60m cache, 1y expires) |
+| `/*` | Frontend:3000 | Fallback to frontend |
+
+**TLS**: Traefik handles Let's Encrypt via ACME http-01 (certbot renewal every 12h). Edit `nginx/conf.d/app-tls.conf.disabled` → rename to `app.conf` to enable HSTS and redirect HTTP → HTTPS.
+
+## Health Checks
+
+Each service exposes a health endpoint:
 
 ```bash
-curl -I https://shopee.review
-curl https://shopee.review/api/health
-curl https://shopee.review/api/deals
+# Backend (Node.js fetch call)
+curl http://localhost:3066/api/health
+
+# Frontend (HTTP status)
+curl http://localhost:3000/
+
+# Database
+docker compose exec db pg_isready -U shopee_review
+
+# Redis
+docker compose exec redis redis-cli ping
+
+# Meilisearch
+curl http://localhost:7700/health
 ```
 
-Verify full flow: login `/admin/login` -> scrape/manual fallback -> upload image -> create deal -> public view -> affiliate click.
+## Backup & Restore
+
+**Automated daily backups** (via db-backup service):
+```bash
+# Dumps are in ./backups on the host
+ls -la ./backups/
+
+# Restore from latest
+gunzip -c ./backups/last/<file>.sql.gz | docker compose exec -T db psql -U shopee_review -d shopee_review
+```
+
+## Database Migrations
+
+Migrations apply automatically on backend startup (Prisma migrate deploy via healthcheck + depends_on), but you can run manually:
+
+```bash
+# Generate migration file
+pnpm --filter @app/database db:migrate:create -- --name <description>
+
+# Apply migrations in Docker
+docker compose exec backend pnpm --filter @app/database db:migrate:deploy
+
+# Introspect (pull schema from DB)
+docker compose exec backend pnpm --filter @app/database db:introspect
+```
+
+## Scaling
+
+- **Backend**: Stateless; can run multiple instances behind a load balancer. Redis must be shared for cache coherence + BullMQ job state.
+- **Frontend**: Stateless; can run multiple instances behind a load balancer.
+- **Database**: PostgreSQL replication (setup beyond this guide); always use DIRECT_URL for migrations.
+- **Redis**: Single instance with persistence (appendonly yes, appendfsync everysec). Ensure `--maxmemory-policy noeviction` to prevent silent BullMQ job loss.
+- **Meilisearch**: Single instance; index syncs via API calls from the backend.
+
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Login fails after deploy | JWT_SECRET changed | Invalidate browser cookies, re-login. Or use ADMIN_BOOTSTRAP_USERNAME to set a new admin. |
+| Clicks not tracked correctly | `trust proxy` misconfigured or proxy hop count mismatch | Verify `trust proxy` setting in main.ts matches Nginx→Backend hops. Check `/api/health` for correct client IP. |
+| SSE notifications not delivered | Nginx buffering interference | Verify `proxy_buffering off` in `/api/notifications/stream` location. |
+| WebSocket drops | Rate-limit too strict or timeout misconfigured | Increase `ws_limit` zone or proxy timeouts in Nginx. |
+| Search not working | Meilisearch not running or MEILI_HOST unset | `docker compose ps meilisearch`; fallback to PostgreSQL full-text search if Meilisearch down. |
+| Out of Redis memory | Cache keys not expiring or job queue backlog | Check cache TTL (default 60s), monitor BullMQ queue sizes. Increase Redis maxmemory if capacity needed. |
+| Cloudflare R2 uploads fail | Credentials invalid or bucket misconfigured | Verify R2 env vars; check bucket permissions. Uploads log clear 500 if credentials missing. |
+
+## Verification Checklist
+
+```bash
+# 1. Services running
+docker compose ps
+
+# 2. Health endpoints
+curl http://localhost:8081/api/health
+curl http://localhost:8081/
+
+# 3. Database connectivity (from backend logs)
+docker compose logs backend | grep "Connected to database"
+
+# 4. Redis available
+docker compose exec redis redis-cli ping
+
+# 5. Meilisearch available
+curl http://localhost:7700/health
+
+# 6. JWT working (signup + login flow)
+# (Full E2E verification in browser)
+
+# 7. Click tracking (post creation + affiliate link redirect)
+# (Verify ClickLog entries in database)
+
+# 8. Real-time notifications (Socket.io + SSE)
+# (Open dev console, trigger a like, check Network tab for /api/notifications/stream)
+```
+
+## Notes
+
+- **No ADMIN_PASSWORD env var**: Admin access is identity-based (isAdmin flag on User model); bootstrapped via ADMIN_BOOTSTRAP_USERNAME.
+- **SHOPEE_AFFILIATE_ID optional**: If unset, product scraping gracefully degrades to the plain product URL; users paste their own affiliate ID when writing the review.
+- **Local uploads removed**: Image uploads now go to Cloudflare R2 only (configured via env vars).
+- **Port 3001 retired**: Backend now runs on port 3066.
