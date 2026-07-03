@@ -100,7 +100,8 @@ export class SocialGateway
     this.server?.to(room(postId)).emit('comment:deleted', { commentId });
   }
 
-  emitLikeUpdate(postId: number, likeCount: number): void {
-    this.server?.to(room(postId)).emit('like:update', { postId, likeCount });
+  emitReactionUpdate(postId: number, counts: Record<string, number>): void {
+    const total = Object.values(counts).reduce((s, n) => s + n, 0);
+    this.server?.to(room(postId)).emit('reaction:update', { postId, counts, total });
   }
 }

@@ -39,6 +39,15 @@ enum ReportTargetType {
   USER
 }
 
+enum ReactionType {
+  LIKE
+  LOVE
+  HAHA
+  WOW
+  SAD
+  ANGRY
+}
+
 model User {
   id              Int       @id @default(autoincrement())
   username        String    @unique @db.VarChar(50)
@@ -65,7 +74,8 @@ model User {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   posts              Post[]
-  likes              Like[]
+  reactions          Reaction[]
+  bookmarks          Bookmark[]
   comments           Comment[]
   followers          Follow[]       @relation("Following")
   following          Follow[]       @relation("Follower")
@@ -88,15 +98,17 @@ model Post {
   productMeta  Json?    @map("product_meta")
   images       String[]
   categoryId   Int?     @map("category_id")
-  likeCount    Int      @default(0) @map("like_count")
+  likeCount    Int      @default(0) @map("like_count") // total reactions (all types)
   commentCount Int      @default(0) @map("comment_count")
   clickCount   Int      @default(0) @map("click_count")
+  shareCount   Int      @default(0) @map("share_count")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   category      Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  likes         Like[]
+  reactions     Reaction[]
+  bookmarks     Bookmark[]
   comments      Comment[]
   clickLogs     ClickLog[]
   notifications Notification[]
@@ -121,7 +133,21 @@ model Follow {
   @@map("follows")
 }
 
-model Like {
+model Reaction {
+  userId    Int          @map("user_id")
+  postId    Int          @map("post_id")
+  type      ReactionType @default(LIKE)
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId, type])
+  @@map("reactions")
+}
+
+model Bookmark {
   userId    Int      @map("user_id")
   postId    Int      @map("post_id")
   createdAt DateTime @default(now()) @map("created_at")
@@ -130,8 +156,8 @@ model Like {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@id([userId, postId])
-  @@index([postId])
-  @@map("likes")
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("bookmarks")
 }
 
 model Comment {

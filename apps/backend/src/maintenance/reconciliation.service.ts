@@ -54,15 +54,15 @@ export class ReconciliationService {
   async runReconciliation(): Promise<number> {
     let total = 0;
 
-    // posts.like_count
+    // posts.like_count (now total reactions — table renamed likes → reactions)
     total += await this.prisma.$executeRawUnsafe(`
       UPDATE posts p SET like_count = c.cnt
-      FROM (SELECT post_id, COUNT(*)::int AS cnt FROM likes GROUP BY post_id) c
+      FROM (SELECT post_id, COUNT(*)::int AS cnt FROM reactions GROUP BY post_id) c
       WHERE p.id = c.post_id AND p.like_count <> c.cnt
     `);
     total += await this.prisma.$executeRawUnsafe(`
       UPDATE posts p SET like_count = 0
-      WHERE p.like_count <> 0 AND NOT EXISTS (SELECT 1 FROM likes l WHERE l.post_id = p.id)
+      WHERE p.like_count <> 0 AND NOT EXISTS (SELECT 1 FROM reactions r WHERE r.post_id = p.id)
     `);
 
     // posts.comment_count (parents + replies)

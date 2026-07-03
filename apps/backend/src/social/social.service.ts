@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@app/database';
+import { Prisma, type ReactionType } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BlocksService } from '../moderation/blocks.service';
@@ -141,78 +141,142 @@ export class SocialService {
     return { data, nextPage: hasMore ? page + 1 : null };
   }
 
-  // ---------- Likes ----------
-  async likePost(userId: number, postId: number) {
+  // ---------- Reactions ----------
+  // likeCount on Post is the TOTAL reaction count, maintained with atomic
+  // increment/decrement (no read-modify-write). Per-type counts are aggregated
+  // on read from the (post_id, type) index — no denormalized JSON to drift.
+  private async reactionCounts(postId: number): Promise<Record<string, number>> {
+    const rows = await this.prisma.reaction.groupBy({
+      by: ['type'],
+      where: { postId },
+      _count: { _all: true },
+    });
+    return Object.fromEntries(rows.map((r) => [r.type, r._count._all]));
+  }
+
+  /** Upsert a reaction. Same type again toggles it off. Atomic counter math. */
+  async react(userId: number, postId: number, type: ReactionType) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       select: { id: true, userId: true },
     });
     if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    await this.blocks.assertNotBlocked(userId, post.userId);
 
-    // @@id([userId, postId]) is the source of truth; P2002 → idempotent.
-    let updated: { likeCount: number };
-    try {
-      const [, post2] = await this.prisma.$transaction([
-        this.prisma.like.create({ data: { userId, postId } }),
-        this.prisma.post.update({
-          where: { id: postId },
-          data: { likeCount: { increment: 1 } },
-          select: { likeCount: true },
-        }),
+    const existing = await this.prisma.reaction.findUnique({
+      where: { userId_postId: { userId, postId } },
+      select: { type: true },
+    });
+
+    let reacted: ReactionType | null;
+    if (!existing) {
+      await this.prisma.$transaction([
+        this.prisma.reaction.create({ data: { userId, postId, type } }),
+        this.prisma.post.update({ where: { id: postId }, data: { likeCount: { increment: 1 } } }),
       ]);
-      updated = post2;
-    } catch (e) {
-      if (isUniqueViolation(e)) return { liked: true };
-      throw e;
+      reacted = type;
+      await this.notifications.create({
+        recipientId: post.userId,
+        type: 'LIKE',
+        actorId: userId,
+        postId,
+      });
+    } else if (existing.type === type) {
+      // Same reaction → remove (toggle off).
+      await this.prisma.$transaction([
+        this.prisma.reaction.delete({ where: { userId_postId: { userId, postId } } }),
+        this.prisma.post.update({ where: { id: postId }, data: { likeCount: { decrement: 1 } } }),
+      ]);
+      reacted = null;
+    } else {
+      // Switch type — total unchanged.
+      await this.prisma.reaction.update({
+        where: { userId_postId: { userId, postId } },
+        data: { type },
+      });
+      reacted = type;
     }
 
-    this.gateway.emitLikeUpdate(postId, updated.likeCount);
-
-    await this.notifications.create({
-      recipientId: post.userId,
-      type: 'LIKE',
-      actorId: userId,
-      postId,
-    });
-
-    return { liked: true };
+    const counts = await this.reactionCounts(postId);
+    this.gateway.emitReactionUpdate(postId, counts);
+    return { type: reacted, counts };
   }
 
-  async unlikePost(userId: number, postId: number) {
-    const existing = await this.prisma.like.findUnique({
-      where: { userId_postId: { userId, postId } },
-    });
-    if (!existing) return { liked: false };
-
-    const [, post2] = await this.prisma.$transaction([
-      this.prisma.like.delete({ where: { userId_postId: { userId, postId } } }),
-      this.prisma.post.update({
-        where: { id: postId },
-        data: { likeCount: { decrement: 1 } },
-        select: { likeCount: true },
-      }),
-    ]);
-
-    this.gateway.emitLikeUpdate(postId, post2.likeCount);
-
-    return { liked: false };
-  }
-
-  async likeStatus(postId: number, userId?: number) {
+  async reactionStatus(postId: number, userId?: number) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      select: { likeCount: true },
+      select: { id: true },
     });
     if (!post) throw new NotFoundException('Không tìm thấy bài viết');
 
-    let isLiked = false;
+    let type: ReactionType | null = null;
     if (userId) {
-      const like = await this.prisma.like.findUnique({
+      const r = await this.prisma.reaction.findUnique({
         where: { userId_postId: { userId, postId } },
+        select: { type: true },
       });
-      isLiked = Boolean(like);
+      type = r?.type ?? null;
     }
-    return { count: post.likeCount, isLiked };
+    return { type, counts: await this.reactionCounts(postId) };
+  }
+
+  // ---------- Bookmarks ----------
+  async toggleBookmark(userId: number, postId: number) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, userId: true },
+    });
+    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    await this.blocks.assertNotBlocked(userId, post.userId);
+
+    const existing = await this.prisma.bookmark.findUnique({
+      where: { userId_postId: { userId, postId } },
+    });
+    if (existing) {
+      await this.prisma.bookmark.delete({ where: { userId_postId: { userId, postId } } });
+      return { bookmarked: false };
+    }
+    try {
+      await this.prisma.bookmark.create({ data: { userId, postId } });
+    } catch (e) {
+      if (isUniqueViolation(e)) return { bookmarked: true };
+      throw e;
+    }
+    return { bookmarked: true };
+  }
+
+  async listBookmarks(userId: number, cursor?: number, limit = 20) {
+    const rows = await this.prisma.bookmark.findMany({
+      where: { userId },
+      take: limit + 1,
+      ...(cursor ? { cursor: { userId_postId: { userId, postId: cursor } }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        post: {
+          include: {
+            user: { select: { username: true, displayName: true, avatarUrl: true } },
+            category: true,
+          },
+        },
+      },
+    });
+    const hasMore = rows.length > limit;
+    const sliced = hasMore ? rows.slice(0, limit) : rows;
+    return {
+      data: sliced.map((b) => b.post),
+      nextCursor: hasMore ? sliced[sliced.length - 1].postId : null,
+    };
+  }
+
+  // ---------- Share ----------
+  async share(postId: number) {
+    const post = await this.prisma.post.update({
+      where: { id: postId },
+      data: { shareCount: { increment: 1 } },
+      select: { shareCount: true },
+    }).catch(() => null);
+    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    return { shareCount: post.shareCount };
   }
 
   // ---------- Comments ----------

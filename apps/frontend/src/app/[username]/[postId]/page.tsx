@@ -6,7 +6,9 @@ import { ApiError, postsApi } from '@/lib/api';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { CommentsSection } from '@/components/social/comments-section';
-import { LikeButton } from '@/components/social/like-button';
+import { ReactionButton } from '@/components/social/reaction-button';
+import { BookmarkButton } from '@/components/social/bookmark-button';
+import { ShareButton } from '@/components/social/share-button';
 import { FollowButton } from '@/components/social/follow-button';
 import { ReportButton } from '@/components/moderation/report-button';
 import { clickRedirectUrl, resolveAssetUrl, SITE_NAME } from '@/lib/constants';
@@ -174,7 +176,7 @@ export default async function PostDetailPage({
 
           {/* Interaction bar */}
           <div className="mt-sm flex items-center gap-lg border-t border-outline-variant pt-md text-on-surface-variant">
-            <LikeButton postId={post.id} initialCount={post.likeCount} variant="icon" />
+            <ReactionButton postId={post.id} initialCount={post.likeCount} variant="icon" />
             <Link href="#comments" className="flex items-center gap-xs transition-colors hover:text-tertiary">
               <Icon name="chat_bubble" className="text-lg" />
               <span className="font-body-sm text-body-sm">{formatNumber(post.commentCount)}</span>
@@ -183,6 +185,8 @@ export default async function PostDetailPage({
               <Icon name="ads_click" className="text-lg" />
               <span className="font-body-sm text-body-sm">{formatNumber(post.clickCount)}</span>
             </span>
+            <BookmarkButton postId={post.id} />
+            <ShareButton postId={post.id} username={post.user.username} initialCount={post.shareCount ?? 0} />
             <div className="ml-auto">
               <ReportButton targetType="POST" targetId={post.id} label="Báo cáo" />
             </div>

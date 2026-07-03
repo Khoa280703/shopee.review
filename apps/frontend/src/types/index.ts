@@ -36,6 +36,7 @@ export interface Post {
   likeCount: number;
   commentCount: number;
   clickCount: number;
+  shareCount?: number;
   createdAt: string;
   updatedAt?: string;
   user: UserSummary;

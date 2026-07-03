@@ -156,6 +156,8 @@ export const usersApi = {
 };
 
 // ---------- Social ----------
+export type ReactionKind = 'LIKE' | 'LOVE' | 'HAHA' | 'WOW' | 'SAD' | 'ANGRY';
+
 export const socialApi = {
   followStatus: (username: string) =>
     apiFetch<{ following: boolean }>(`/users/${username}/follow-status`),
@@ -163,12 +165,21 @@ export const socialApi = {
     apiFetch<{ following: boolean }>(`/users/${username}/follow`, { method: 'POST' }),
   unfollow: (username: string) =>
     apiFetch<{ following: boolean }>(`/users/${username}/follow`, { method: 'DELETE' }),
-  like: (postId: number) =>
-    apiFetch<{ liked: boolean }>(`/posts/${postId}/like`, { method: 'POST' }),
-  unlike: (postId: number) =>
-    apiFetch<{ liked: boolean }>(`/posts/${postId}/like`, { method: 'DELETE' }),
-  likeStatus: (postId: number) =>
-    apiFetch<{ count: number; isLiked: boolean }>(`/posts/${postId}/likes/count`),
+  react: (postId: number, type: ReactionKind) =>
+    apiFetch<{ type: ReactionKind | null; counts: Record<string, number> }>(
+      `/posts/${postId}/reactions`,
+      { method: 'PUT', body: JSON.stringify({ type }) },
+    ),
+  reactionStatus: (postId: number) =>
+    apiFetch<{ type: ReactionKind | null; counts: Record<string, number> }>(
+      `/posts/${postId}/reactions/me`,
+    ),
+  bookmark: (postId: number) =>
+    apiFetch<{ bookmarked: boolean }>(`/posts/${postId}/bookmark`, { method: 'PUT' }),
+  bookmarks: (cursor?: number) =>
+    apiFetch<CursorPage<Post>>(`/me/bookmarks${cursor ? `?cursor=${cursor}` : ''}`),
+  share: (postId: number) =>
+    apiFetch<{ shareCount: number }>(`/posts/${postId}/share`, { method: 'POST' }),
   comments: (postId: number, cursor?: number, isServer = false) =>
     apiFetch<CursorPage<Comment>>(`/posts/${postId}/comments${cursor ? `?cursor=${cursor}` : ''}`, {
       isServer,

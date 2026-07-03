@@ -3,7 +3,8 @@ import Image from 'next/image';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { buttonClasses } from '@/components/ui/button-classes';
-import { LikeButton } from '@/components/social/like-button';
+import { ReactionButton } from '@/components/social/reaction-button';
+import { ShareButton } from '@/components/social/share-button';
 import { PostActionContent, postActionWrapperClass } from './post-action-button';
 import { clickRedirectUrl, resolveAssetUrl } from '@/lib/constants';
 import { formatPrice, timeAgo } from '@/lib/format';
@@ -149,10 +150,8 @@ export function PostFeedCard({ post }: { post: Post }) {
           >
             <PostActionContent icon="open_in_new" count={post.clickCount} color="secondary" />
           </a>
-          <LikeButton postId={post.id} initialCount={post.likeCount} variant="icon" />
-          <button className={postActionWrapperClass('primary')}>
-            <PostActionContent icon="share" color="primary" />
-          </button>
+          <ReactionButton postId={post.id} initialCount={post.likeCount} variant="icon" />
+          <ShareButton postId={post.id} username={post.user.username} initialCount={post.shareCount ?? 0} />
         </div>
       </div>
     </article>

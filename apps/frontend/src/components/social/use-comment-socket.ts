@@ -12,7 +12,7 @@ import type { Comment } from '@/types';
 export function useCommentSocket(
   postId: number,
   setComments: Dispatch<SetStateAction<Comment[]>>,
-  onLikeUpdate?: (likeCount: number) => void,
+  onReactionUpdate?: (total: number) => void,
 ) {
   const socket = useSocket();
 
@@ -54,20 +54,20 @@ export function useCommentSocket(
       );
     };
 
-    const onLike = ({ likeCount }: { postId: number; likeCount: number }) => {
-      onLikeUpdate?.(likeCount);
+    const onReaction = ({ total }: { postId: number; total: number }) => {
+      onReactionUpdate?.(total);
     };
 
     socket.on('comment:new', onNew);
     socket.on('comment:deleted', onDeleted);
-    socket.on('like:update', onLike);
+    socket.on('reaction:update', onReaction);
 
     return () => {
       socket.emit('leave-post', postId);
       socket.off('connect', join);
       socket.off('comment:new', onNew);
       socket.off('comment:deleted', onDeleted);
-      socket.off('like:update', onLike);
+      socket.off('reaction:update', onReaction);
     };
-  }, [socket, postId, setComments, onLikeUpdate]);
+  }, [socket, postId, setComments, onReactionUpdate]);
 }

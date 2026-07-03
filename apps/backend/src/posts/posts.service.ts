@@ -61,6 +61,7 @@ type RawPostRow = {
   like_count: number;
   comment_count: number;
   click_count: number;
+  share_count?: number;
   created_at: Date;
   updated_at: Date;
   username: string;
@@ -87,6 +88,7 @@ function mapRawPostRow({
     likeCount: Number(row.like_count),
     commentCount: Number(row.comment_count),
     clickCount: Number(row.click_count),
+    shareCount: Number(row.share_count ?? 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     user: { username, displayName: display_name, avatarUrl: avatar_url },

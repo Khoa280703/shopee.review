@@ -6,7 +6,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { BlocksModule } from '../moderation/blocks.module';
 import { CommentsController } from './comments.controller';
 import { FollowsController } from './follows.controller';
-import { LikesController } from './likes.controller';
+import { ReactionsController } from './reactions.controller';
+import { BookmarksController } from './bookmarks.controller';
 import { SocialGateway } from './social.gateway';
 import { SocialService } from './social.service';
 
@@ -23,7 +24,7 @@ import { SocialService } from './social.service';
       }),
     }),
   ],
-  controllers: [FollowsController, LikesController, CommentsController],
+  controllers: [FollowsController, ReactionsController, BookmarksController, CommentsController],
   providers: [SocialService, SocialGateway],
   exports: [SocialService, SocialGateway],
 })

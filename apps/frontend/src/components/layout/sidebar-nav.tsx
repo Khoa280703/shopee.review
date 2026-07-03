@@ -22,8 +22,10 @@ export function SidebarNav() {
     ? [
         { href: '/notifications', icon: 'notifications', label: 'Thông báo' },
         { href: '/feed', icon: 'rss_feed', label: 'Bảng tin' },
+        { href: '/saved', icon: 'bookmark', label: 'Đã lưu' },
         { href: `/${user.username}`, icon: 'person', label: 'Trang cá nhân' },
         { href: '/dashboard', icon: 'monitoring', label: 'Thống kê' },
+        ...(user.isAdmin ? [{ href: '/admin', icon: 'shield', label: 'Quản trị' }] : []),
       ]
     : [];
 
