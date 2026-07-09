@@ -45,6 +45,24 @@ import { UsersModule } from './users/users.module';
         level: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
         genReqId: (req) =>
           (req.headers['x-request-id'] as string) ?? randomUUID(),
+        // Strip single-use secrets from the logged URL. Email verify / password
+        // reset links carry the token as a query param; pino logs req.url, so
+        // without this the raw token lands in Loki (a credential in the logs).
+        serializers: {
+          req(req: { id?: unknown; method?: string; url?: string; remoteAddress?: string; remotePort?: number }) {
+            const url =
+              typeof req.url === 'string'
+                ? req.url.replace(/([?&](?:token|reset_token|verify_token)=)[^&]*/gi, '$1[REDACTED]')
+                : req.url;
+            return {
+              id: req.id,
+              method: req.method,
+              url,
+              remoteAddress: req.remoteAddress,
+              remotePort: req.remotePort,
+            };
+          },
+        },
         autoLogging: {
           ignore: (req) => {
             const url = req.url ?? '';
