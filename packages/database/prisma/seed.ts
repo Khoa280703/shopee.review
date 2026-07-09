@@ -285,22 +285,22 @@ async function main() {
   }
   console.log();
 
-  // 6. Likes (random users like random posts)
-  console.log('❤️  Seeding likes...');
+  // 6. Reactions (random users react to random posts; likes→reactions rename)
+  console.log('❤️  Seeding reactions...');
   let likeCount = 0;
   for (const post of createdPosts) {
     const numLikes = rand(2, 6);
     const shuffled = [...createdUsers].sort(() => Math.random() - 0.5).slice(0, numLikes);
     for (const user of shuffled) {
-      await prisma.like.upsert({
+      await prisma.reaction.upsert({
         where: { userId_postId: { userId: user.id, postId: post.id } },
-        create: { userId: user.id, postId: post.id },
+        create: { userId: user.id, postId: post.id, type: 'LIKE' },
         update: {},
       });
       likeCount++;
     }
   }
-  console.log(`   ✓ ${likeCount} likes\n`);
+  console.log(`   ✓ ${likeCount} reactions\n`);
 
   // 7. Comments
   console.log('💬 Seeding comments...');
