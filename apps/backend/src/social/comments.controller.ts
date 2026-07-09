@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
+import { parsePageParams } from '../common/parse-page-params';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { SocialService } from './social.service';
 
@@ -24,11 +25,8 @@ export class CommentsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.socialService.getComments(
-      id,
-      cursor ? Number(cursor) : undefined,
-      limit ? Number(limit) : 20,
-    );
+    const page = parsePageParams(cursor, limit, { def: 20, max: 50 });
+    return this.socialService.getComments(id, page.cursor, page.limit);
   }
 
   @Get('posts/:id/comments/:parentId/replies')
@@ -38,12 +36,8 @@ export class CommentsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.socialService.getReplies(
-      id,
-      parentId,
-      cursor ? Number(cursor) : undefined,
-      limit ? Number(limit) : 10,
-    );
+    const page = parsePageParams(cursor, limit, { def: 10, max: 50 });
+    return this.socialService.getReplies(id, parentId, page.cursor, page.limit);
   }
 
   @Post('posts/:id/comments')

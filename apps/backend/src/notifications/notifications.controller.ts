@@ -10,9 +10,11 @@ import {
   Sse,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Observable } from 'rxjs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
+import { parsePageParams } from '../common/parse-page-params';
 import { NotificationsService } from './notifications.service';
 
 @Controller('notifications')
@@ -22,7 +24,7 @@ export class NotificationsController {
   @Get()
   @UseGuards(JwtAuthGuard)
   list(@CurrentUser() user: AuthUser, @Query('cursor') cursor?: string) {
-    return this.notificationsService.list(user.id, cursor ? Number(cursor) : undefined);
+    return this.notificationsService.list(user.id, parsePageParams(cursor).cursor);
   }
 
   @Get('unread-count')
@@ -46,7 +48,10 @@ export class NotificationsController {
   // X-Accel-Buffering:no tells nginx not to buffer this response, so SSE events
   // flush immediately instead of being held; Cache-Control:no-cache prevents any
   // proxy from caching the stream.
+  // SkipThrottle: a long-lived SSE connection must not count against the global
+  // rate limiter (one open stream would otherwise exhaust the per-IP quota).
   @Sse('stream')
+  @SkipThrottle()
   @Header('X-Accel-Buffering', 'no')
   @Header('Cache-Control', 'no-cache')
   @UseGuards(JwtAuthGuard)

@@ -11,6 +11,7 @@ export default async function HomePage() {
   let categories: Category[] = [];
   let initial: CursorPage<Post> = { data: [], nextCursor: null };
   let trending: Post[] = [];
+  let loadFailed = false;
 
   try {
     [categories, initial, trending] = await Promise.all([
@@ -18,8 +19,11 @@ export default async function HomePage() {
       postsApi.explore(0, undefined, true),
       postsApi.trending(true).catch(() => []),
     ]);
-  } catch {
-    // backend may be unavailable during build; render empty state
+  } catch (err) {
+    // Distinguish a fetch FAILURE (backend down / network) from a genuinely
+    // empty feed — otherwise an error looks identical to "no posts yet".
+    loadFailed = true;
+    console.error('[HomePage] feed load failed:', err);
   }
 
   return (
@@ -33,7 +37,13 @@ export default async function HomePage() {
             </div>
           )}
         </div>
-        <LoadMorePosts initial={initial} source={{ type: 'explore' }} variant="feed" />
+        {loadFailed ? (
+          <div className="rounded-xl border border-dashed border-outline-variant py-16 text-center text-on-surface-variant">
+            Không tải được bảng tin. Vui lòng thử lại sau.
+          </div>
+        ) : (
+          <LoadMorePosts initial={initial} source={{ type: 'explore' }} variant="feed" />
+        )}
       </section>
       <RightSidebar trending={trending} />
     </div>

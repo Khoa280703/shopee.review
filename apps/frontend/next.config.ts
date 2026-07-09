@@ -1,19 +1,21 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 
-const apiUrlStr = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3066/api';
-const isAbsoluteUrl = /^https?:\/\//.test(apiUrlStr);
-const apiUrl = isAbsoluteUrl ? new URL(apiUrlStr) : new URL('http://localhost:3066/api');
-const apiProtocol = apiUrl.protocol.replace(':', '') as 'http' | 'https';
+// Backend origin for the DEV rewrite only (no nginx in front of `pnpm dev`).
+// In prod nginx proxies these same-origin paths, so rewrites() returns [].
+const devBackendOrigin = (process.env.API_INTERNAL_URL || 'http://localhost:3066/api').replace(
+  /\/api\/?$/,
+  '',
+);
 
 const nextConfig: NextConfig = {
   output: 'standalone',
   images: {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    // Local /uploads images are same-origin (relative) → treated as local by the
+    // Next optimizer, no remotePattern needed. Only absolute remote hosts listed.
     remotePatterns: [
-      // Only add uploads pattern when API URL is absolute (has explicit hostname)
-      ...(isAbsoluteUrl ? [{ protocol: apiProtocol, hostname: apiUrl.hostname, port: apiUrl.port, pathname: '/uploads/**' }] : []),
       { protocol: 'https', hostname: '**.r2.dev' },
       { protocol: 'https', hostname: '**.r2.cloudflarestorage.com' },
       { protocol: 'https', hostname: 'cf.shopee.vn' },
@@ -26,6 +28,17 @@ const nextConfig: NextConfig = {
     ],
   },
   transpilePackages: ['@app/database'],
+  // Dev-only proxy so the browser's relative /api, /uploads, /r, /socket.io reach
+  // the backend without nginx. Prod serves these via nginx (same origin).
+  async rewrites() {
+    if (process.env.NODE_ENV === 'production') return [];
+    return [
+      { source: '/api/:path*', destination: `${devBackendOrigin}/api/:path*` },
+      { source: '/uploads/:path*', destination: `${devBackendOrigin}/uploads/:path*` },
+      { source: '/r/:path*', destination: `${devBackendOrigin}/r/:path*` },
+      { source: '/socket.io/:path*', destination: `${devBackendOrigin}/socket.io/:path*` },
+    ];
+  },
 };
 
 // withSentryConfig is a no-op for runtime when no DSN is set; source-map upload

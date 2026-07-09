@@ -136,12 +136,18 @@ export class PostsService {
   private async cached<T>(
     key: string,
     fn: () => Promise<T>,
-    ttl = FEED_CACHE_TTL_MS,
+    // shouldCache guards against persisting an EMPTY result: if the DB was briefly
+    // empty (fresh deploy, mid-seed) an empty feed would otherwise stick for the
+    // full TTL even after data exists. Default caches everything.
+    opts: { ttl?: number; shouldCache?: (result: T) => boolean } = {},
   ): Promise<T> {
+    const { ttl = FEED_CACHE_TTL_MS, shouldCache } = opts;
     const hit = await this.cache.get<T>(key);
     if (hit !== undefined && hit !== null) return hit;
     const result = await fn();
-    await this.cache.set(key, result, ttl);
+    if (!shouldCache || shouldCache(result)) {
+      await this.cache.set(key, result, ttl);
+    }
     return result;
   }
 
@@ -186,9 +192,9 @@ export class PostsService {
 
   async findExplore(offset: number, limit: number, categoryId?: number) {
     const key = `explore:${categoryId ?? 'all'}:${offset}:${limit}`;
-    return this.cached(key, () =>
-      this.queryExplore(offset, limit, categoryId),
-    );
+    return this.cached(key, () => this.queryExplore(offset, limit, categoryId), {
+      shouldCache: (r) => r.data.length > 0,
+    });
   }
 
   private async queryExplore(offset: number, limit: number, categoryId?: number) {
@@ -233,7 +239,9 @@ export class PostsService {
   }
 
   async getTrending(limit = 20) {
-    return this.cached(`trending:${limit}`, () => this.queryTrending(limit));
+    return this.cached(`trending:${limit}`, () => this.queryTrending(limit), {
+      shouldCache: (r) => r.length > 0,
+    });
   }
 
   private async queryTrending(limit = 20) {

@@ -96,12 +96,20 @@ export const postsApi = {
   list: (params: Record<string, string | number | undefined> = {}, isServer = false) => {
     const sp = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => v !== undefined && sp.set(k, String(v)));
-    return apiFetch<CursorPage<Post>>(`/posts?${sp}`, { isServer, revalidate: isServer ? 30 : undefined });
+    // no-store on the server: the feed is dynamic and must never be served from a
+    // stale Next data-cache entry (a cached-empty result would stick past a seed).
+    return apiFetch<CursorPage<Post>>(`/posts?${sp}`, {
+      isServer,
+      cache: isServer ? 'no-store' : undefined,
+    });
   },
   explore: (offset = 0, categoryId?: number, isServer = false) => {
     const sp = new URLSearchParams({ offset: String(offset), limit: '20' });
     if (categoryId) sp.set('categoryId', String(categoryId));
-    return apiFetch<CursorPage<Post>>(`/posts/explore?${sp}`, { isServer, revalidate: isServer ? 30 : undefined });
+    return apiFetch<CursorPage<Post>>(`/posts/explore?${sp}`, {
+      isServer,
+      cache: isServer ? 'no-store' : undefined,
+    });
   },
   trending: (isServer = false) =>
     apiFetch<Post[]>('/posts/trending', { isServer, revalidate: isServer ? 60 : undefined }),

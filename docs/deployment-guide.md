@@ -56,17 +56,28 @@ CERTBOT_EMAIL=admin@example.com # Let's Encrypt notifications
 ### Frontend/API URLs
 
 ```env
-FRONTEND_URL=https://shopee.review              # What backend sees as trusted origin (CORS)
-NEXT_PUBLIC_API_URL=https://shopee.review/api   # Browser-visible API URL
-API_INTERNAL_URL=http://backend:3066/api        # Backend→frontend SSR calls (internal compose network)
+FRONTEND_URL=https://shopee.review              # Trusted origin(s) for CORS + OAuth redirect (comma-separated)
+API_INTERNAL_URL=http://backend:3066/api        # SSR → backend, internal compose network (server-only)
 ```
+
+> **Browser API base is RELATIVE (`/api`).** The client bundle no longer bakes
+> `NEXT_PUBLIC_API_URL` at build time — the browser calls the API same-origin via
+> nginx (which fronts `/api`, `/uploads`, `/r`, `/socket.io`). One frontend image
+> therefore runs on any host/port. Do NOT reintroduce a `NEXT_PUBLIC_API_URL`
+> build-arg. (`pnpm dev` proxies these paths to the backend via a Next dev rewrite.)
 
 ### Authentication
 
 ```env
-JWT_SECRET=<random-32+-chars>
+JWT_SECRET=<random-32+-chars>                    # REQUIRED — compose refuses to boot if unset (no fallback)
 ADMIN_BOOTSTRAP_USERNAME=your_username_here     # Comma-separated; idempotent on boot, no self-promotion UI
 ```
+
+> **`JWT_SECRET` is mandatory.** `docker-compose.yml` uses `${JWT_SECRET:?...}`, so
+> the stack fails fast if it is unset (previously a public `change-me...` fallback
+> silently signed tokens — an auth-bypass if forgotten). Generate with
+> `openssl rand -base64 48`; the same value must be shared by backend + frontend
+> (the Next middleware verifies the same HS256 token and fails closed without it).
 
 ### Google OAuth
 

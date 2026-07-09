@@ -109,7 +109,7 @@ services:
       REDIS_URL: redis://redis:6379
       MEILI_HOST: http://meilisearch:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterKeyChangeMe}
-      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (set a long random string in .env)}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-admin-token}
       # Set to "true" only when serving over HTTPS (see app-tls.conf.disabled).
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
@@ -151,15 +151,16 @@ services:
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
+      # No NEXT_PUBLIC_API_URL: the browser uses a relative /api base (nginx is
+      # same-origin), so nothing host-specific is baked into the client bundle.
       args:
-        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost/api}
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
     restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
-      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (set a long random string in .env)}
       # Internal URL for SSR → backend (never exposed to browser)
       API_INTERNAL_URL: http://backend:3066/api
     depends_on:

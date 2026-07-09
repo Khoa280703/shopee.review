@@ -10,11 +10,11 @@ COPY packages/database/package.json ./packages/database/
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS builder
-# NEXT_PUBLIC_* must be present at build time (inlined into the client bundle).
-ARG NEXT_PUBLIC_API_URL=http://localhost/api
+# NEXT_PUBLIC_* are inlined at build time. The API base is NOT baked: the browser
+# uses a relative /api (same-origin via nginx), which removes the whole class of
+# "image built for the wrong host/port" bugs. Only the Sentry DSN is build-time.
 ARG NEXT_PUBLIC_SENTRY_DSN=
 ARG API_INTERNAL_URL=http://localhost:3066/api
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 ENV API_INTERNAL_URL=$API_INTERNAL_URL
 COPY tsconfig.base.json ./

@@ -10,10 +10,17 @@ const secret = process.env.JWT_SECRET
   ? new TextEncoder().encode(process.env.JWT_SECRET)
   : null;
 
+if (!secret) {
+  // Fail-closed (below) rather than trusting cookie presence. Compose refuses to
+  // boot without JWT_SECRET, so this should never fire in a real deployment.
+  console.warn('[middleware] JWT_SECRET is not set — protected routes will redirect to login.');
+}
+
 async function isValidToken(token: string): Promise<boolean> {
   if (!secret) {
-    // No secret configured at the edge: presence-only check (legacy behavior).
-    return true;
+    // No secret at the edge → cannot verify → FAIL CLOSED (do not trust a cookie
+    // we can't validate). Presence-only was an auth-bypass if the secret leaked/unset.
+    return false;
   }
   try {
     await jwtVerify(token, secret); // verifies signature + exp

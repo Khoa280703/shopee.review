@@ -5,9 +5,12 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from './prisma/prisma.service';
 import { REDIS_CLIENT, type AppRedisClient } from './redis/redis.module';
 
+// Health probes run frequently (Docker/Traefik) — never rate-limit them.
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(

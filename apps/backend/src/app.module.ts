@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-yet';
 import { ConfigModule } from '@nestjs/config';
@@ -27,6 +27,7 @@ import { SocialModule } from './social/social.module';
 import { StatsModule } from './stats/stats.module';
 import { TrackerModule } from './tracker/tracker.module';
 import { ScraperModule } from './scraper/scraper.module';
+import { SmartThrottlerGuard } from './common/smart-throttler.guard';
 import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 
@@ -58,7 +59,12 @@ import { UsersModule } from './users/users.module';
       },
     }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
+    // Blanket per-IP backstop (nginx api_limit is the primary external limiter;
+    // this is defense-in-depth + covers routes nginx groups together). Kept
+    // generous so a normal browsing session (feed load-more + reactions +
+    // comments + unread-count poll) never trips a false 429. Sensitive routes
+    // (login/register/...) set tighter per-route @Throttle overrides.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async () => {
@@ -101,6 +107,13 @@ import { UsersModule } from './users/users.module';
     // Catch-all reporter for non-Prisma exceptions. The specific
     // PrismaExceptionFilter (registered in main.ts) shapes known DB errors.
     { provide: APP_FILTER, useClass: SentryGlobalFilter },
+    // Rate-limit EVERY route by default. Previously ThrottlerModule was
+    // configured but never bound as a guard, so only endpoints with an explicit
+    // @UseGuards(ThrottlerGuard) were limited — leaving comment/follow/react/
+    // bookmark/upload wide open to spam. SmartThrottlerGuard exempts internal SSR
+    // traffic (no X-Forwarded-For) so server-rendered pages aren't all keyed to
+    // one container IP. Health + SSE opt out via @SkipThrottle.
+    { provide: APP_GUARD, useClass: SmartThrottlerGuard },
   ],
 })
 export class AppModule {}

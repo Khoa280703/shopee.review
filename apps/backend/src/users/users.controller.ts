@@ -14,6 +14,7 @@ import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
+import { parsePageParams } from '../common/parse-page-params';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UsersService } from './users.service';
 
@@ -70,10 +71,11 @@ export class UsersController {
     @Query('limit') limit?: string,
     @Query('hasProduct') hasProduct?: string,
   ) {
+    const page = parsePageParams(cursor, limit, { def: 20, max: 50 });
     return this.usersService.getUserPosts(
       username,
-      cursor ? Number(cursor) : undefined,
-      limit ? Number(limit) : 20,
+      page.cursor,
+      page.limit,
       hasProduct === 'true',
     );
   }
