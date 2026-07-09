@@ -159,19 +159,33 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       return null;
     }
 
-    const notification = await this.prisma.notification.create({
-      data: {
-        recipientId: dto.recipientId,
-        type: dto.type,
-        actorId: dto.actorId,
-        postId: dto.postId,
-      },
-      include: NOTIFICATION_INCLUDE,
-    });
+    // Notification delivery is best-effort: it MUST NOT fail the parent action.
+    // follow()/comment()/react() await this AFTER their own transaction commits,
+    // so a throw here would surface a 500 to the client even though the follow/
+    // comment/reaction already succeeded (and, inside react's P2002 try/catch,
+    // could be misread as an idempotency conflict). Swallow + log instead.
+    try {
+      const notification = await this.prisma.notification.create({
+        data: {
+          recipientId: dto.recipientId,
+          type: dto.type,
+          actorId: dto.actorId,
+          postId: dto.postId,
+        },
+        include: NOTIFICATION_INCLUDE,
+      });
 
-    await this.pushToStream(dto.recipientId, notification);
+      await this.pushToStream(dto.recipientId, notification);
 
-    return notification;
+      return notification;
+    } catch (e) {
+      this.logger.warn(
+        `Notification emit failed (recipient=${dto.recipientId}, type=${dto.type}): ${
+          e instanceof Error ? e.message : e
+        }`,
+      );
+      return null;
+    }
   }
 
   createStream(userId: number): Observable<MessageEvent> {

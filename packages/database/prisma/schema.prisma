@@ -116,6 +116,10 @@ model Post {
   @@index([userId])
   @@index([categoryId])
   @@index([createdAt(sort: Desc)])
+  // Keyset pagination for the sortable feeds (findAll sortBy=likeCount|clickCount
+  // with an id tiebreaker) — keeps the sort index-backed instead of a full sort.
+  @@index([likeCount(sort: Desc), id(sort: Desc)])
+  @@index([clickCount(sort: Desc), id(sort: Desc)])
   @@map("posts")
 }
 

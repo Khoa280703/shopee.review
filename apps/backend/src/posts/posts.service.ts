@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   Optional,
   NotFoundException,
 } from '@nestjs/common';
@@ -97,6 +98,8 @@ function mapRawPostRow({
 
 @Injectable()
 export class PostsService {
+  private readonly logger = new Logger(PostsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(SCRAPER_PROVIDER) private readonly scraperProvider: ScraperProvider,
@@ -142,11 +145,21 @@ export class PostsService {
     opts: { ttl?: number; shouldCache?: (result: T) => boolean } = {},
   ): Promise<T> {
     const { ttl = FEED_CACHE_TTL_MS, shouldCache } = opts;
-    const hit = await this.cache.get<T>(key);
-    if (hit !== undefined && hit !== null) return hit;
+    // Cache is best-effort: a Redis error (e.g. the shared noeviction instance
+    // filling up) must DEGRADE to a direct DB read, never 500 the whole feed.
+    try {
+      const hit = await this.cache.get<T>(key);
+      if (hit !== undefined && hit !== null) return hit;
+    } catch (e) {
+      this.logger.warn(`cache get failed for ${key}: ${e instanceof Error ? e.message : e}`);
+    }
     const result = await fn();
     if (!shouldCache || shouldCache(result)) {
-      await this.cache.set(key, result, ttl);
+      try {
+        await this.cache.set(key, result, ttl);
+      } catch (e) {
+        this.logger.warn(`cache set failed for ${key}: ${e instanceof Error ? e.message : e}`);
+      }
     }
     return result;
   }
@@ -162,9 +175,13 @@ export class PostsService {
       ];
     }
 
+    // Always tie-break by unique id so cursor pagination is STABLE. Ordering by
+    // a non-unique column (likeCount/clickCount) without a tiebreaker made the
+    // id-based cursor skip/duplicate rows across pages. With the compound
+    // orderBy, Prisma derives the correct keyset from the cursor row's values.
     const sortBy = dto.sortBy ?? 'createdAt';
-    const orderBy: Prisma.PostOrderByWithRelationInput =
-      sortBy === 'createdAt' ? { id: 'desc' } : { [sortBy]: 'desc' };
+    const orderBy: Prisma.PostOrderByWithRelationInput[] =
+      sortBy === 'createdAt' ? [{ id: 'desc' }] : [{ [sortBy]: 'desc' }, { id: 'desc' }];
 
     const posts = await this.prisma.post.findMany({
       where,
