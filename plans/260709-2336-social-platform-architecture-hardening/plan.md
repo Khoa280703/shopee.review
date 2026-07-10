@@ -49,7 +49,8 @@ All 4 Critical findings were orchestrator-verified by reading source. One review
 | SEO / OG + Twitter cards | ✅ done | post-detail + layout: canonical, article author, summary_large_image |
 | Admin audit log | ✅ done + migration | append-only `admin_audit_logs`; logs ban/unban/delete/resolve; `GET /admin/audit` (admin UI table can consume later) |
 | Facebook login | ✅ done (code-ready) | strategy+guard+service+migration+buttons; blank env = off. Needs user's Facebook App ID/Secret to activate. |
-| Session mgmt (list + revoke devices) | ⏸ NOT done | the remaining half of the "sessions + audit" pick — a refresh-token/session-tracking overhaul of the JWT auth flow (high blast radius). Best as a focused pass behind a feature flag. |
+| Session mgmt (list + revoke devices) | ✅ done + migration + tests | Session row per login (sid in JWT), JwtStrategy revokes on missing row; `/auth/sessions` list + revoke one + revoke-others; settings UI; retention sweep for expired sessions. Verified live (revoke device2 → 401, device1 stays 200). Reviewed: 0 Critical; H1 (session retention) + M2 (revoke-others guard) fixed. |
+| WS session-check parity | ⏸ deferred (low impact) | social.gateway checks tokenVersion+ban but not session `sid`; a revoked device keeps its WebSocket. Read-only broadcast + no userId-gated emits → low risk. Revisit if WS ever gates private data. |
 | 2FA (TOTP), phone/OTP, feed fanout | ⏸ roadmap | not selected / needs decisions (SMS provider) |
 
 ### Phase 3 item status (2026-07-10)
