@@ -8,6 +8,14 @@ import { parseAllowedOrigins } from './common/shopee-url';
 import { PrismaExceptionFilter } from './common/prisma-exception.filter';
 import { RedisIoAdapter } from './social/redis-io.adapter';
 
+// Postgres BIGINT columns (click_logs.id, notifications.id) surface as JS bigint,
+// which JSON.stringify refuses to serialize (throws). Serialize as a Number —
+// exact for values well under 2^53, far beyond any realistic row id — so the API
+// contract keeps ids as JSON numbers after the int4→bigint migration.
+(BigInt.prototype as unknown as { toJSON: () => number }).toJSON = function (this: bigint) {
+  return Number(this);
+};
+
 async function bootstrap() {
   // bufferLogs so startup logs flow through Pino once it's resolved.
   const app = await NestFactory.create(AppModule, { bufferLogs: true });

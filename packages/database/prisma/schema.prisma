@@ -204,7 +204,9 @@ model Comment {
 }
 
 model ClickLog {
-  id        Int      @id @default(autoincrement())
+  // BigInt: high-insert log table — int4 would exhaust at ~2.1B rows. Never read
+  // by id in code, so this is transparent to the app.
+  id        BigInt   @id @default(autoincrement())
   postId    Int      @map("post_id")
   ip        String?
   userAgent String?  @map("user_agent")
@@ -221,7 +223,9 @@ model ClickLog {
 }
 
 model Notification {
-  id          Int              @id @default(autoincrement())
+  // BigInt: fanout table (one row per follower per event) — grows fastest at
+  // social scale. ids serialize to JSON Number via a BigInt.toJSON shim (main.ts).
+  id          BigInt           @id @default(autoincrement())
   recipientId Int              @map("recipient_id")
   type        NotificationType
   actorId     Int              @map("actor_id")

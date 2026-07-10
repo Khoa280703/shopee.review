@@ -205,17 +205,19 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       include: NOTIFICATION_INCLUDE,
       orderBy: { id: 'desc' },
       take: limit + 1,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      // id is BIGINT → the incoming cursor (a JSON number) must be widened.
+      ...(cursor ? { cursor: { id: BigInt(cursor) }, skip: 1 } : {}),
     });
     const hasMore = notifications.length > limit;
     const data = hasMore ? notifications.slice(0, limit) : notifications;
+    // nextCursor is a bigint; the BigInt.toJSON shim renders it as a JSON number.
     return { data, nextCursor: hasMore ? data[data.length - 1].id : null };
   }
 
   /** Mark a single notification read (ownership-checked). */
   async markRead(userId: number, id: number) {
     const result = await this.prisma.notification.updateMany({
-      where: { id, recipientId: userId },
+      where: { id: BigInt(id), recipientId: userId },
       data: { read: true },
     });
     if (result.count === 0) {
