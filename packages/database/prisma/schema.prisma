@@ -54,6 +54,7 @@ model User {
   email           String    @unique
   passwordHash    String?   @map("password_hash")
   googleId        String?   @unique @map("google_id")
+  facebookId      String?   @unique @map("facebook_id")
   displayName     String    @map("display_name") @db.VarChar(100)
   bio             String?   @db.Text
   avatarUrl       String?   @map("avatar_url")

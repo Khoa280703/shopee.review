@@ -119,6 +119,9 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
+      FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
+      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
+      FACEBOOK_CALLBACK_URL: ${FACEBOOK_CALLBACK_URL:-}
       # Optional: platform affiliate id (scrape degrades to plain product URL if unset).
       SHOPEE_AFFILIATE_ID: ${SHOPEE_AFFILIATE_ID:-}
       # First-admin bootstrap: comma-separated usernames granted is_admin on boot.

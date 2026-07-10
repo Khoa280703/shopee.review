@@ -24,7 +24,10 @@ import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { parseAllowedOrigins } from '../common/shopee-url';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
-import { GoogleAuthGuard, OAUTH_STATE_COOKIE } from './guards/google-auth.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { FacebookAuthGuard } from './guards/facebook-auth.guard';
+import { verifyOAuthState } from '../common/oauth-state';
+import type { FacebookProfile } from './strategies/facebook.strategy';
 import type { GoogleProfile } from './strategies/google.strategy';
 
 @Controller('auth')
@@ -141,17 +144,31 @@ export class AuthController {
     const [frontendUrl] = parseAllowedOrigins(this.config.get<string>('FRONTEND_URL'));
 
     // OAuth CSRF check: the ?state returned by Google must match the nonce cookie
-    // set at initiation. Blocks login-CSRF / account fixation. Clear the nonce
-    // either way (single use).
-    const cookieState = (req.cookies as Record<string, string> | undefined)?.[OAUTH_STATE_COOKIE];
-    const queryState = typeof req.query?.state === 'string' ? req.query.state : undefined;
-    res.clearCookie(OAUTH_STATE_COOKIE, { path: '/' });
-    if (!cookieState || !queryState || cookieState !== queryState) {
+    // set at initiation. Blocks login-CSRF / account fixation.
+    if (!verifyOAuthState(req, res)) {
       res.redirect(`${frontendUrl}/auth/login?error=oauth_state`);
       return;
     }
 
     await this.authService.googleLogin(req.user as GoogleProfile, res);
+    res.redirect(`${frontendUrl}/auth/callback`);
+  }
+
+  @Get('facebook')
+  @UseGuards(FacebookAuthGuard)
+  facebookAuth(): void {
+    // Passport redirects to Facebook
+  }
+
+  @Get('facebook/callback')
+  @UseGuards(FacebookAuthGuard)
+  async facebookCallback(@Req() req: Request, @Res() res: Response): Promise<void> {
+    const [frontendUrl] = parseAllowedOrigins(this.config.get<string>('FRONTEND_URL'));
+    if (!verifyOAuthState(req, res)) {
+      res.redirect(`${frontendUrl}/auth/login?error=oauth_state`);
+      return;
+    }
+    await this.authService.facebookLogin(req.user as FacebookProfile, res);
     res.redirect(`${frontendUrl}/auth/callback`);
   }
 }

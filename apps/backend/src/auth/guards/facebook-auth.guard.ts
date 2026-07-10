@@ -3,7 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { mintOAuthState } from '../../common/oauth-state';
 
 @Injectable()
-export class GoogleAuthGuard extends AuthGuard('google') {
+export class FacebookAuthGuard extends AuthGuard('facebook') {
   getAuthenticateOptions(context: ExecutionContext): Record<string, unknown> {
     return mintOAuthState(context);
   }

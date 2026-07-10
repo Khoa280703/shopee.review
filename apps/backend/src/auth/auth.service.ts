@@ -20,6 +20,7 @@ import { EMAIL_JOB, EMAIL_QUEUE } from '../queue/queue.constants';
 import { RegisterDto } from './dto/register.dto';
 import { MailService } from './mail.service';
 import type { GoogleProfile } from './strategies/google.strategy';
+import type { FacebookProfile } from './strategies/facebook.strategy';
 
 const COOKIE_NAME = 'auth_token';
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -170,6 +171,40 @@ export class AuthService {
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: { googleId: profile.googleId, emailVerified: true },
+      });
+    }
+
+    this.setAuthCookie(res, user);
+    return this.sanitize(user);
+  }
+
+  async facebookLogin(profile: FacebookProfile, res: Response): Promise<AuthUser> {
+    if (!profile.email) {
+      // Facebook only returns email if the user granted it; without it we can't
+      // create/link a unique account (email is required + unique).
+      throw new BadRequestException('Facebook không trả về email — vui lòng cấp quyền email');
+    }
+
+    let user = await this.prisma.user.findFirst({
+      where: { OR: [{ facebookId: profile.facebookId }, { email: profile.email }] },
+    });
+
+    if (!user) {
+      const username = await this.generateUniqueUsername(profile.email);
+      user = await this.prisma.user.create({
+        data: {
+          username,
+          email: profile.email,
+          facebookId: profile.facebookId,
+          displayName: profile.displayName,
+          avatarUrl: profile.avatarUrl,
+          emailVerified: true, // provider-verified identity → trusted, no email link
+        },
+      });
+    } else if (!user.facebookId) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { facebookId: profile.facebookId, emailVerified: true },
       });
     }
 

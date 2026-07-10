@@ -71,6 +71,13 @@ export default function LoginPage() {
           Đăng nhập với Google
         </a>
 
+        <a
+          href={authApi.facebookUrl()}
+          className={`mt-2 ${buttonClasses({ variant: 'outline', fullWidth: true, size: 'lg' })}`}
+        >
+          Đăng nhập với Facebook
+        </a>
+
         <p className="mt-6 text-center text-body-sm text-on-surface-variant">
           Chưa có tài khoản?{' '}
           <Link href="/auth/register" className="font-semibold text-primary underline underline-offset-2">

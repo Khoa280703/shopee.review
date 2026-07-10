@@ -89,6 +89,7 @@ export const authApi = {
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
   googleUrl: () => `${API_URL}/auth/google`,
+  facebookUrl: () => `${API_URL}/auth/facebook`,
 };
 
 // ---------- Posts ----------
