@@ -32,6 +32,22 @@ const REACTIONS: { type: ReactionKind; emoji: string; label: string }[] = [
 const total = (counts: Record<string, number>) =>
   Object.values(counts).reduce((s, n) => s + n, 0);
 
+// Mirror the backend toggle so the UI updates instantly and stays consistent
+// under rapid taps: same type → remove, different type → switch, none → add.
+function applyOptimistic(state: ReactionState, type: ReactionKind): ReactionState {
+  const counts = { ...state.counts };
+  const bump = (t: string, d: number) => {
+    counts[t] = Math.max(0, (counts[t] ?? 0) + d);
+  };
+  if (state.type === type) {
+    bump(type, -1);
+    return { type: null, counts };
+  }
+  if (state.type) bump(state.type, -1);
+  bump(type, 1);
+  return { type, counts };
+}
+
 export function ReactionButton({ postId, initialCount, variant = 'button' }: Props) {
   const { user } = useAuth();
   const router = useRouter();
@@ -48,7 +64,19 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
 
   const { mutate } = useMutation({
     mutationFn: (type: ReactionKind) => socialApi.react(postId, type),
-    onSuccess: (res) => queryClient.setQueryData<ReactionState>(key, res),
+    // Optimistic + reconcile: update the cache immediately, roll back on error,
+    // and always refetch on settle so out-of-order responses from rapid taps
+    // can't leave a wrong final state (the server is authoritative).
+    onMutate: async (type: ReactionKind) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData<ReactionState>(key);
+      if (prev) queryClient.setQueryData<ReactionState>(key, applyOptimistic(prev, type));
+      return { prev };
+    },
+    onError: (_e, _type, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData<ReactionState>(key, ctx.prev);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   });
 
   const current = data?.type ?? null;
