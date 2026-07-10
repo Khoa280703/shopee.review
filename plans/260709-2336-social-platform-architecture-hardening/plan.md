@@ -40,7 +40,17 @@ All 4 Critical findings were orchestrator-verified by reading source. One review
 | 1 | [P0 Critical Hotfixes](./phase-01-p0-critical-hotfixes.md) | P0 | ✅ Completed (2026-07-10) |
 | 2 | [P1 Correctness & Resilience](./phase-02-p1-correctness-resilience.md) | P1 | 🟡 Partial (2026-07-10) |
 | 3 | [P2 Scale Hardening](./phase-03-p2-scale-hardening.md) | P2 | 🟡 Partial (2026-07-10) |
-| 4 | [P3 Platform Features](./phase-04-p3-platform-features.md) | P3 | Planned (roadmap) |
+| 4 | [P3 Platform Features](./phase-04-p3-platform-features.md) | P3 | 🟡 Partial (2026-07-10) |
+
+### Phase 4 item status (2026-07-10)
+
+| Item | Status | Note |
+|------|--------|------|
+| SEO / OG + Twitter cards | ✅ done | post-detail + layout: canonical, article author, summary_large_image |
+| Admin audit log | ✅ done + migration | append-only `admin_audit_logs`; logs ban/unban/delete/resolve; `GET /admin/audit` (admin UI table can consume later) |
+| Facebook login | ✅ done (code-ready) | strategy+guard+service+migration+buttons; blank env = off. Needs user's Facebook App ID/Secret to activate. |
+| Session mgmt (list + revoke devices) | ⏸ NOT done | the remaining half of the "sessions + audit" pick — a refresh-token/session-tracking overhaul of the JWT auth flow (high blast radius). Best as a focused pass behind a feature flag. |
+| 2FA (TOTP), phone/OTP, feed fanout | ⏸ roadmap | not selected / needs decisions (SMS provider) |
 
 ### Phase 3 item status (2026-07-10)
 
