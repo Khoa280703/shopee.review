@@ -274,3 +274,21 @@ model ScrapedProduct {
   @@index([scrapedAt])
   @@map("scraped_products")
 }
+
+// Append-only trail of privileged admin actions (ban/unban/delete/resolve) for
+// moderation accountability. actorId/targetId are polymorphic (no FK) so history
+// survives even if the actor or target row is later deleted — the point of an
+// audit log is that it cannot be erased by deleting the referenced entity.
+model AdminAuditLog {
+  id         Int      @id @default(autoincrement())
+  actorId    Int      @map("actor_id")
+  action     String   @db.VarChar(50) // e.g. BAN_USER, DELETE_POST, RESOLVE_REPORT
+  targetType String?  @map("target_type") @db.VarChar(20) // USER | POST | COMMENT | REPORT
+  targetId   Int?     @map("target_id")
+  detail     String?  @db.VarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@map("admin_audit_logs")
+}

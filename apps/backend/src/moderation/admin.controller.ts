@@ -14,6 +14,7 @@ import { IsEnum } from 'class-validator';
 import { ReportStatus } from '@app/database';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
+import { parsePageParams } from '../common/parse-page-params';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 
@@ -32,6 +33,12 @@ export class AdminController {
     return this.admin.listReports(status);
   }
 
+  @Get('audit')
+  listAudit(@Query('cursor') cursor?: string, @Query('limit') limit?: string) {
+    const page = parsePageParams(cursor, limit, { def: 50, max: 100 });
+    return this.admin.listAudit(page.limit, page.cursor);
+  }
+
   @Patch('reports/:id')
   resolveReport(
     @CurrentUser() user: AuthUser,
@@ -42,13 +49,13 @@ export class AdminController {
   }
 
   @Delete('posts/:id')
-  deletePost(@Param('id', ParseIntPipe) id: number) {
-    return this.admin.deletePost(id);
+  deletePost(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return this.admin.deletePost(user.id, id);
   }
 
   @Delete('comments/:id')
-  deleteComment(@Param('id', ParseIntPipe) id: number) {
-    return this.admin.deleteComment(id);
+  deleteComment(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return this.admin.deleteComment(user.id, id);
   }
 
   @Post('users/:id/ban')
@@ -57,7 +64,7 @@ export class AdminController {
   }
 
   @Post('users/:id/unban')
-  unban(@Param('id', ParseIntPipe) id: number) {
-    return this.admin.unban(id);
+  unban(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return this.admin.unban(user.id, id);
   }
 }
