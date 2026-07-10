@@ -49,17 +49,27 @@ import { UsersModule } from './users/users.module';
         // reset links carry the token as a query param; pino logs req.url, so
         // without this the raw token lands in Loki (a credential in the logs).
         serializers: {
-          req(req: { id?: unknown; method?: string; url?: string; remoteAddress?: string; remotePort?: number }) {
+          req(req: {
+            id?: unknown;
+            method?: string;
+            url?: string;
+            remoteAddress?: string;
+            socket?: { remoteAddress?: string };
+          }) {
+            // Redact single-use credentials that ride in the URL: verify/reset
+            // tokens AND the OAuth `code` (Google callback query).
             const url =
               typeof req.url === 'string'
-                ? req.url.replace(/([?&](?:token|reset_token|verify_token)=)[^&]*/gi, '$1[REDACTED]')
+                ? req.url.replace(
+                    /([?&](?:token|reset_token|verify_token|code)=)[^&]*/gi,
+                    '$1[REDACTED]',
+                  )
                 : req.url;
             return {
               id: req.id,
               method: req.method,
               url,
-              remoteAddress: req.remoteAddress,
-              remotePort: req.remotePort,
+              remoteAddress: req.remoteAddress ?? req.socket?.remoteAddress,
             };
           },
         },

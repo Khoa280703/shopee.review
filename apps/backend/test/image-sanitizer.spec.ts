@@ -31,8 +31,17 @@ describe('sanitizeImage', () => {
     expect(meta.height).toBe(1024);
   });
 
-  it('passes GIF through untouched (avoids fragile animated re-encode)', async () => {
-    const gif = Buffer.from('GIF89a-fake', 'ascii');
+  it('passes a within-limits GIF through untouched (avoids fragile animated re-encode)', async () => {
+    const gif = await sharp({ create: { width: 32, height: 32, channels: 4, background: '#fff' } })
+      .gif()
+      .toBuffer();
     expect(await sanitizeImage(gif, 'image/gif')).toBe(gif);
+  });
+
+  it('rejects an oversized GIF (cap cannot resize a passthrough)', async () => {
+    const bigGif = await sharp({ create: { width: 3000, height: 100, channels: 4, background: '#fff' } })
+      .gif()
+      .toBuffer();
+    await expect(sanitizeImage(bigGif, 'image/gif')).rejects.toThrow();
   });
 });

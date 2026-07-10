@@ -34,7 +34,11 @@ async function resolveShortLink(shortUrl: string): Promise<string> {
     if (!isAllowedShopeeHost(current)) {
       throw new BadRequestException('Short link redirect tới host không hợp lệ');
     }
-    const response = await fetch(current, { method: 'HEAD', redirect: 'manual' });
+    const response = await fetch(current, {
+      method: 'HEAD',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(5_000), // a slow/hanging host must not stall the request
+    });
     const location = response.headers.get('location');
     if (!location) return current; // no further redirect
     current = new URL(location, current).toString(); // resolve relative Location
