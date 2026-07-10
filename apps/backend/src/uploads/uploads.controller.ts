@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { sanitizeImage } from './image-sanitizer';
 import { R2UploadService } from './r2-upload.service';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -65,6 +66,10 @@ export class UploadsController {
     if (!sniffed || !ALLOWED_MIME.includes(sniffed)) {
       throw new BadRequestException('Nội dung tệp không phải ảnh hợp lệ');
     }
+    // Strip EXIF (GPS/PII) + bound dimensions by re-encoding from the sniffed
+    // type; also normalizes the stored MIME/ext to the real content.
+    file.buffer = await sanitizeImage(file.buffer, sniffed);
+    file.mimetype = sniffed;
     const url = await this.r2.uploadImage(file);
     return { url };
   }
