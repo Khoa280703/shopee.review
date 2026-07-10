@@ -231,8 +231,12 @@ export const notificationsApi = {
 
 // ---------- Categories ----------
 export const categoriesApi = {
+  // Categories change rarely (admin-managed) — cache 1h server-side to cut
+  // backend load on every SSR page. On-demand tag revalidation isn't used: the
+  // app's mutations go client→NestJS directly (bypassing Next), so revalidateTag
+  // has nothing to hook; a short time window is the pragmatic, correct choice.
   list: (isServer = false) =>
-    apiFetch<Category[]>('/categories', { isServer, revalidate: isServer ? 300 : undefined }),
+    apiFetch<Category[]>('/categories', { isServer, revalidate: isServer ? 3600 : undefined }),
 };
 
 // ---------- Stats ----------

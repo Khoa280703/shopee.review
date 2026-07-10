@@ -166,14 +166,14 @@ export class PostsService {
 
   async findAll(dto: QueryPostsDto) {
     const limit = dto.limit ?? 20;
+    // Free-text search goes through the Postgres FTS GIN index (posts_search_idx)
+    // via a raw query — the previous ILIKE '%term%' could not use any index and
+    // seq-scanned the whole table. Keyset-paginated by id to keep the contract.
+    if (dto.search) {
+      return this.querySearch(dto.search, dto.cursor, limit, dto.categoryId);
+    }
     const where: Prisma.PostWhereInput = {};
     if (dto.categoryId) where.categoryId = dto.categoryId;
-    if (dto.search) {
-      where.OR = [
-        { title: { contains: dto.search, mode: 'insensitive' } },
-        { content: { contains: dto.search, mode: 'insensitive' } },
-      ];
-    }
 
     // Always tie-break by unique id so cursor pagination is STABLE. Ordering by
     // a non-unique column (likeCount/clickCount) without a tiebreaker made the
@@ -252,6 +252,35 @@ export class PostsService {
     return {
       data: data.map(mapRawPostRow),
       nextCursor: hasMore ? offset + limit : null,
+    };
+  }
+
+  // Index-backed full-text search (posts_search_idx GIN on the same 'simple'
+  // to_tsvector expression). Keyset by id DESC so pagination stays stable.
+  private async querySearch(
+    search: string,
+    cursor: number | undefined,
+    limit: number,
+    categoryId?: number,
+  ) {
+    const match = Prisma.sql`to_tsvector('simple', p.title || ' ' || coalesce(p.content, '')) @@ plainto_tsquery('simple', ${search})`;
+    const catClause = categoryId ? Prisma.sql`AND p.category_id = ${categoryId}` : Prisma.empty;
+    const cursorClause = cursor ? Prisma.sql`AND p.id < ${cursor}` : Prisma.empty;
+
+    const rows = await this.prisma.$queryRaw<RawPostRow[]>`
+      SELECT p.*, u.username, u.display_name, u.avatar_url
+      FROM posts p
+      JOIN users u ON u.id = p.user_id
+      WHERE ${match} ${catClause} ${cursorClause}
+      ORDER BY p.id DESC
+      LIMIT ${limit + 1}
+    `;
+
+    const hasMore = rows.length > limit;
+    const data = hasMore ? rows.slice(0, limit) : rows;
+    return {
+      data: data.map(mapRawPostRow),
+      nextCursor: hasMore ? data[data.length - 1].id : null,
     };
   }
 
