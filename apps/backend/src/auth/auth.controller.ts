@@ -24,7 +24,7 @@ import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { parseAllowedOrigins } from '../common/shopee-url';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
-import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { GoogleAuthGuard, OAUTH_STATE_COOKIE } from './guards/google-auth.guard';
 import type { GoogleProfile } from './strategies/google.strategy';
 
 @Controller('auth')
@@ -136,10 +136,22 @@ export class AuthController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    await this.authService.googleLogin(req.user as GoogleProfile, res);
     // FRONTEND_URL may be a comma-separated list (CORS allow-list); redirect to
     // the first origin so a multi-origin config doesn't produce a broken URL.
     const [frontendUrl] = parseAllowedOrigins(this.config.get<string>('FRONTEND_URL'));
+
+    // OAuth CSRF check: the ?state returned by Google must match the nonce cookie
+    // set at initiation. Blocks login-CSRF / account fixation. Clear the nonce
+    // either way (single use).
+    const cookieState = (req.cookies as Record<string, string> | undefined)?.[OAUTH_STATE_COOKIE];
+    const queryState = typeof req.query?.state === 'string' ? req.query.state : undefined;
+    res.clearCookie(OAUTH_STATE_COOKIE, { path: '/' });
+    if (!cookieState || !queryState || cookieState !== queryState) {
+      res.redirect(`${frontendUrl}/auth/login?error=oauth_state`);
+      return;
+    }
+
+    await this.authService.googleLogin(req.user as GoogleProfile, res);
     res.redirect(`${frontendUrl}/auth/callback`);
   }
 }
