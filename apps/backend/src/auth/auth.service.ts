@@ -147,8 +147,13 @@ export class AuthService {
 
   /** Log out every OTHER device, keeping the caller's current session. */
   async revokeOtherSessions(userId: number, currentSessionId?: string): Promise<{ count: number }> {
+    // Defensive: without a known current session we can't tell which to keep, so
+    // refuse rather than delete every session (incl. the caller's own).
+    if (!currentSessionId) {
+      throw new BadRequestException('Không xác định được phiên hiện tại');
+    }
     const result = await this.prisma.session.deleteMany({
-      where: { userId, id: { not: currentSessionId ?? '' } },
+      where: { userId, id: { not: currentSessionId } },
     });
     return { count: result.count };
   }

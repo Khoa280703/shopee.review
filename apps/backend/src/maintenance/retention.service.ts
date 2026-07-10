@@ -12,6 +12,10 @@ const LOCK_TTL_MS = 30 * 60 * 1000;
 // are pruned (unread stay until seen), after 30d.
 const CLICK_LOG_RETENTION_DAYS = 90;
 const READ_NOTIFICATION_RETENTION_DAYS = 30;
+// Match the JWT cookie lifetime (30d): a session older than that already has a
+// dead token, so the row is pure noise (and stale PII) — and it would otherwise
+// linger in the user's "active sessions" list forever.
+const SESSION_RETENTION_DAYS = 30;
 
 /**
  * Nightly retention sweep: caps unbounded-growth tables and expires stored PII.
@@ -39,10 +43,10 @@ export class RetentionService {
     }
 
     try {
-      const { clickLogs, notifications } = await this.runRetention();
-      if (clickLogs > 0 || notifications > 0) {
+      const { clickLogs, notifications, sessions } = await this.runRetention();
+      if (clickLogs > 0 || notifications > 0 || sessions > 0) {
         this.logger.log(
-          `Retention swept ${clickLogs} click_logs and ${notifications} read notifications`,
+          `Retention swept ${clickLogs} click_logs, ${notifications} read notifications, ${sessions} expired sessions`,
         );
       }
     } catch (error) {
@@ -53,10 +57,12 @@ export class RetentionService {
   }
 
   /** Exposed for manual/admin invocation and tests. */
-  async runRetention(): Promise<{ clickLogs: number; notifications: number }> {
+  async runRetention(): Promise<{ clickLogs: number; notifications: number; sessions: number }> {
     const now = Date.now();
-    const clickCutoff = new Date(now - CLICK_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-    const notifCutoff = new Date(now - READ_NOTIFICATION_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const day = 24 * 60 * 60 * 1000;
+    const clickCutoff = new Date(now - CLICK_LOG_RETENTION_DAYS * day);
+    const notifCutoff = new Date(now - READ_NOTIFICATION_RETENTION_DAYS * day);
+    const sessionCutoff = new Date(now - SESSION_RETENTION_DAYS * day);
 
     const clicks = await this.prisma.clickLog.deleteMany({
       where: { createdAt: { lt: clickCutoff } },
@@ -64,7 +70,10 @@ export class RetentionService {
     const notifs = await this.prisma.notification.deleteMany({
       where: { read: true, createdAt: { lt: notifCutoff } },
     });
+    const sessions = await this.prisma.session.deleteMany({
+      where: { createdAt: { lt: sessionCutoff } },
+    });
 
-    return { clickLogs: clicks.count, notifications: notifs.count };
+    return { clickLogs: clicks.count, notifications: notifs.count, sessions: sessions.count };
   }
 }

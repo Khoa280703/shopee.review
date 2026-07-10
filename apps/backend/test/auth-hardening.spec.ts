@@ -136,6 +136,11 @@ describe('AuthService session management', () => {
     });
   });
 
+  it('revokeOtherSessions refuses when the current session is unknown (no mass wipe)', async () => {
+    const { service } = svc({ deleteMany: vi.fn().mockResolvedValue({ count: 9 }) });
+    await expect(service.revokeOtherSessions(7, undefined)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('listSessions flags the caller current session', async () => {
     const rows = [
       { id: 'a', userAgent: null, ip: null, createdAt: new Date() },
