@@ -39,8 +39,20 @@ All 4 Critical findings were orchestrator-verified by reading source. One review
 |-------|------|----------|--------|
 | 1 | [P0 Critical Hotfixes](./phase-01-p0-critical-hotfixes.md) | P0 | ✅ Completed (2026-07-10) |
 | 2 | [P1 Correctness & Resilience](./phase-02-p1-correctness-resilience.md) | P1 | 🟡 Partial (2026-07-10) |
-| 3 | [P2 Scale Hardening](./phase-03-p2-scale-hardening.md) | P2 | Planned |
-| 4 | [P3 Platform Features](./phase-04-p3-platform-features.md) | P3 | Planned |
+| 3 | [P2 Scale Hardening](./phase-03-p2-scale-hardening.md) | P2 | 🟡 Partial (2026-07-10) |
+| 4 | [P3 Platform Features](./phase-04-p3-platform-features.md) | P3 | Planned (roadmap) |
+
+### Phase 3 item status (2026-07-10)
+
+| Item | Status | Note |
+|------|--------|------|
+| 3b retention sweep (click_logs PII + read notifications) | ✅ done | nightly cron, Redis-locked, idempotent |
+| 3c trending MV + share_count | ✅ done + migration | shares now scored; verified live |
+| 3e X-Forwarded-Proto = real scheme | ✅ done | nginx map, config tested |
+| 3f CI bake-URL guard | ✅ done | fails if client bundle bakes absolute API URL |
+| 3g reaction optimistic + reconcile | ✅ done | rapid-tap race fixed |
+| 3a BIGINT PKs + partition click_logs | ⏸ deferred (new evidence) | BIGINT PK is NOT "cheap": `notification.id`/`click_log.id` become JS `bigint` → `JSON.stringify` throws (SSE/API serialization) + type ripple through ParseIntPipe/DTOs. Int4 exhaustion (~2.1B rows) is far off; partitioning a ~0-row table is premature. Retention (3b) already bounds growth. Do when volume actually warrants, with the serialization handled. |
+| 3d User soft-delete | ⏸ deferred (YAGNI/gated) | large refactor touching every User read path; gated on the unresolved GDPR/account-deletion timeline (plan Q3). Implement when account deletion becomes a real requirement, not speculatively. |
 
 ### Phase 2 item status (2026-07-10)
 
