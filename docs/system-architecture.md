@@ -15,7 +15,7 @@ Backend NestJS modules (`apps/backend/src/app.module.ts`):
 | **Posts** | CRUD operations, product URL scraping, category assignment, denormalized reaction/comment/share counts |
 | **Social** | Reactions (renamed from likes; types: LIKE, LOVE, HAHA, WOW, SAD, ANGRY), bookmarks, shares, follow state |
 | **Notifications** | Real-time SSE + Socket.io, cursor-paginated, PATCH to mark read, pub/sub via Redis |
-| **Feed** | Personal timeline (posts from followed users, excludes blocked/banned), global trending |
+| **Feed** | Personal timeline (posts from followed users, excludes blocked/banned), global trending via materialized view (ordered by engagement: reactions + shares + recent comments, weighted by share_count) |
 | **Stats** | Click statistics per post, aggregated analytics |
 | **Tracker** | Click log recording at `/r/:postId` (dedup 1h/IP), composite index (postId, ip, createdAt) |
 | **Search** | Meilisearch primary search + PostgreSQL full-text fallback |
@@ -127,6 +127,41 @@ Future interactions:
   └→ User A cannot follow User B
 ```
 
+### 6. Pagination & Cursor Navigation
+
+```
+User requests GET /api/posts?sortBy=likeCount&cursor=abc
+  ↓
+Backend extracts cursor (previously seen post ID) + limit (1-50)
+  ↓
+Query uses compound orderBy: [{sortBy}, {id}] + keyset index
+  ↓
+Returns paginated results + nextCursor (last post ID for next request)
+  ↓
+Stable sort: identical results regardless of request order (no skip-based pagination)
+```
+
+All list endpoints use stable cursor-based pagination (keyset) to prevent duplicates under concurrent writes. Sort is compound: primary key (e.g., createdAt, likeCount) + secondary ID (for tiebreaker).
+
+### 7. Notifications (Best-Effort)
+
+```
+User A likes Post (User B authored)
+  ↓
+Backend atomically updates counters (success)
+  ↓ Parallel (non-blocking):
+  ├→ Enqueue notification job (fire-and-forget)
+  └→ Return 200 OK to User A immediately
+  ↓
+Notification delivery (async):
+  ├→ Create Notification record in DB
+  └→ Publish to Redis pub/sub + WebSocket
+  ↓
+If notification creation fails, parent action (like) already committed
+```
+
+Notification creation is **never** blocking. Exceptions during notification emit don't propagate to the client. Ensures user interactions always succeed (like, comment, follow) regardless of downstream notification pipeline health.
+
 ## Deployment Topology
 
 ```
@@ -166,21 +201,52 @@ Frontend:3000 (Next.js 15):
 | Product scrape cache | 24h | TTL expiry |
 | Meilisearch | On write | Index rebuild |
 
+**Feed cache guarantee:** Feed endpoints (`/explore`, `/trending`, `/me/feed`) never cache empty results. Backend `cached()` helper checks for empty responses before caching; frontend uses `no-store` for feed queries. This prevents serving stale empty feed after new posts are published.
+
+**Cache fail-safe:** Redis errors don't block requests. All cache reads/writes wrapped in try/catch; queries fall back to direct database access on timeout or connection loss.
+
 ## Security Posture
 
-- **Open-redirect fix**: POST/PUT `/api/posts` validates Shopee URL only (no arbitrary affiliates)
-- **CORS**: Exact-match origin (no startsWith), credentials enabled
-- **Trust proxy**: `['loopback', 'linklocal', 'uniquelocal']` for correct client IP (click dedup, rate-limit)
+### Authentication & Authorization
+- **JWT secret required**: `JWT_SECRET` env var is mandatory. docker-compose.yml uses `${JWT_SECRET:?...}`, failing fast if unset (no fallback). Generated via `openssl rand -base64 48`; shared by backend + frontend (Next middleware verifies HS256 tokens).
 - **JWT revocation**: tokenVersion claim signed into JWT, checked in strategy + WS gateway; bumped on password change or ban
+- **Banned user protocol**: tokenVersion++ kills all active sessions immediately
+- **OAuth stateless CSRF**: Google login uses double-submit nonce cookie (signed state cookie matched against ?state param); no express-session required
 - **Admin bootstrap**: ADMIN_BOOTSTRAP_USERNAME (comma-separated) idempotent on boot; no self-promotion UI
 - **HTTP-only cookies**: JWT stored in Secure flag (HTTPS only if COOKIE_SECURE=true)
-- **Banned user protocol**: tokenVersion++ kills all active sessions immediately
-- **Metrics endpoint**: `/metrics` (Prometheus) restricted to private IPs via Nginx
-- **Rate-limiting zones** (Nginx):
-  - General API: 10/s
-  - Auth endpoints: 5/m
-  - Uploads: 2/s
-  - WebSocket: 100/s
+
+### Request Validation & Rate Limiting
+- **SmartThrottlerGuard** (global, app-wide):
+  - Exempts internal requests (API_INTERNAL_URL SSR → backend) by checking X-Forwarded-For presence
+  - No XFF spoofing on shared networks (IPs from untrusted proxies rejected)
+  - Nginx per-IP zones enforce limits:
+    - General API (`/api/*`): 10/s
+    - Auth endpoints (`/api/auth/*`): 5/m
+    - Uploads (`/api/uploads/*`): 2/s
+    - WebSocket (`/socket.io/*`): 100/s
+- **Pagination clamp**: All list endpoints (comments, replies, posts, notifications) parse `limit` + `cursor` with bounds (min=1, max=50)
+- **URL validation**: POST/PUT `/api/posts` validates Shopee URL only (no arbitrary affiliates)
+- **CORS**: Exact-match origin (no startsWith), credentials enabled
+
+### File Uploads & Media
+- **EXIF strip + dimension cap**: Image uploads re-encoded with `sharp` library. EXIF metadata stripped (PII). Dimensions capped: max 3000x3000px (pixel-bomb guard). GIF passthrough without re-encode to preserve animation.
+
+### Scraper & External Requests
+- **SSRF guard**: Scraper validates target URL against Shopee host allowlist. All short-link resolution (e.g., bit.ly) uses a timeout (5s) + manual redirect (no automatic fetch). Prevents server-side request forgery to internal/private networks.
+
+### Privacy & Data Retention
+- **Nightly retention sweep** (Redis-locked, idempotent):
+  - **ClickLog PII purge**: Rows >90 days old deleted (IP + user agent are personally identifiable)
+  - **Read notification cleanup**: Read notifications >30 days old marked as deleted
+  - Runs via maintenance cron; non-blocking (best-effort)
+
+### Proxy & Protocol Headers
+- **X-Forwarded-Proto real**: Nginx maps `X-Forwarded-Proto` to actual scheme (http/https) based on Traefik TLS state. Backend reads correct scheme for redirect URLs, cookie `Secure` flag, OAuth callbacks.
+- **Trust proxy**: `['loopback', 'linklocal', 'uniquelocal']` for correct client IP (click dedup, rate-limit)
+
+### Observability & Logging
+- **Token redaction**: Single-use tokens (verify, reset, OAuth code) redacted from request-URL logs
+- **Metrics endpoint**: `/metrics` (Prometheus) restricted to private IPs via Nginx (127.0.0.1, 172.16.0.0/12, 10.0.0.0/8)
 
 ## Observability
 
@@ -189,3 +255,7 @@ Frontend:3000 (Next.js 15):
 - **Error tracking**: Sentry (backend: SENTRY_DSN, frontend: NEXT_PUBLIC_SENTRY_DSN; no-op if unset)
 - **Metrics**: Prometheus at `/metrics` (scrape interval configurable in Grafana)
 - **Log aggregation**: Structured JSON + Loki (opt-in in docker-compose.monitoring.yml)
+
+## CI/Build
+
+- **Bundle regression guard**: CI (`build-and-unit` job) asserts the frontend image does NOT bake an absolute API URL into the client bundle. Regression: browser calling `http://localhost/api` (hardcoded in build). Guard greps the compiled JS and fails if port-80 API base is detected. Frontend must use relative `/api` base; one image boots on any host/port.

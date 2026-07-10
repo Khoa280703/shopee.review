@@ -1,5 +1,46 @@
 # Project Changelog
 
+## 2026-07-10: Architecture Hardening Phase 1-3 (P0/P1/P2 Defects Closed)
+
+**Consolidated hardening across 3 phases; foundation ready for 100k+ users.**
+
+### Phase 1: P0 Critical Hotfixes
+- **Relative `/api` browser base**: No baked `NEXT_PUBLIC_API_URL`. Frontend loads client-side, proxies to `/api` (Nginx same-origin). One image boots on any host/port. `pnpm dev` rewrite handles Next dev proxy.
+- **JWT_SECRET mandatory**: `docker-compose.yml` uses `${JWT_SECRET:?...}`, fails fast if unset (was silently signing with public fallback). Generated via `openssl rand -base64 48`; shared by backend + frontend middleware (verifies HS256, fails closed).
+- **Global SmartThrottlerGuard**: Exempts internal SSR requests (API_INTERNAL_URL). No XFF spoofing. Nginx per-IP zones: API 10/s, auth 5/m, uploads 2/s, WebSocket 100/s.
+- **Pagination clamp**: All list endpoints (comments, replies, posts, notifications) parse `limit` + `cursor` with bounds (min=1, max=50). Prevents unbounded queries.
+- **Feed cache never empty**: Backend `cached()` helper checks for empty responses before caching. Frontend uses `no-store` for feed queries. Stale-empty bug fixed.
+
+### Phase 2: P1 Correctness & Resilience
+- **Stable cursor pagination**: Compound `orderBy: [{sortBy}, {id}]` with keyset indexes. No skip-based pagination. Prevents duplicates under concurrent writes. Migration added.
+- **Cache fail-safe**: All Redis reads/writes wrapped in try/catch. Timeouts/errors fall back to direct DB. No cache outages block requests.
+- **SSRF guard (scraper)**: Target URL validated against Shopee host allowlist. Manual redirect for short links (5s timeout). Prevents SSRF attacks.
+- **OAuth stateless CSRF**: Double-submit nonce cookie (signed state cookie matched against ?state param). No express-session required.
+- **Token redaction**: Single-use tokens (verify, reset, OAuth code) redacted from request-URL logs (not stored in plain text in audit logs).
+- **Upload EXIF strip + dimension cap**: Images re-encoded with `sharp`. EXIF metadata stripped (PII). Max 3000x3000px (pixel-bomb guard). GIF passthrough.
+- **Notifications fire-and-forget**: Best-effort, never blocking. Exceptions during emit don't propagate to client. Like/comment/follow always succeed.
+
+### Phase 3: P2 Scale Hardening
+- **Nightly retention sweep**: Redis-locked, idempotent cron. ClickLog PII (IP/UA) purged >90 days. Read notifications cleaned >30 days. Non-blocking.
+- **Trending MV with share_count**: Materialized view recreated to score by reactions + shares + recent comments, weighted by `Post.shareCount`. Live trending now accounts for viral spread.
+- **Real X-Forwarded-Proto**: Nginx maps `X-Forwarded-Proto` based on Traefik TLS state. Backend reads correct scheme for redirect URLs, cookie `Secure` flag, OAuth callbacks.
+- **CI bake-URL guard**: `build-and-unit` job fails if client bundle bakes absolute API URL (port-80 regression). Guards against hardcoded localhost/API in compiled JS.
+- **Optimistic reaction + reconcile**: Rapid-tap race fixed. Client optimistically updates UI; server reconciles on conflict.
+
+### Deferred (Not Done + Rationale)
+- **2b Redis throttler storage**: Single-node + Nginx per-IP limits sufficient. Custom ioredis ThrottlerStorage (security-sensitive) deferred until multi-instance.
+- **2d search unify (drop ILIKE)**: Changes findAll contract + FE consumer. Meili/FTS primary search already live; secondary ILIKE path can wait for paired FE change.
+- **2e tag revalidation**: Feed already no-store. Tag invalidation is optimization, not correctness. Low value; deferred.
+- **3a BIGINT PKs + partition**: BIGINT `notification.id`/`click_log.id` → JS `bigint` → `JSON.stringify` throws. Type ripple through code. Int4 exhaustion far off; retention (3b) bounds growth. Do when volume warrants, with serialization handled.
+- **3d User soft-delete**: Large refactor touching every User read path. Gated on unresolved GDPR/account-deletion timeline. Implement when real requirement, not speculatively.
+
+**Updated docs:**
+- system-architecture.md: SmartThrottlerGuard, pagination clamp, feed cache, SSRF, OAuth nonce, upload guards, notifications, cursor pagination, trending MV, X-Forwarded-Proto, retention, CI guard
+- deployment-guide.md: already updated with JWT_SECRET required, relative-/api, API_INTERNAL_URL
+- See plans/260709-2336-social-platform-architecture-hardening/ for full phase details + validation log
+
+---
+
 ## 2026-07-03: Security, Social, and Moderation (Phases 1-7 Complete)
 
 **Major accomplishments across 6 completed phases:**
