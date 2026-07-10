@@ -62,7 +62,8 @@ All 4 Critical findings were orchestrator-verified by reading source. One review
 | 3e X-Forwarded-Proto = real scheme | ✅ done | nginx map, config tested |
 | 3f CI bake-URL guard | ✅ done | fails if client bundle bakes absolute API URL |
 | 3g reaction optimistic + reconcile | ✅ done | rapid-tap race fixed |
-| 3a BIGINT PKs (click_logs + notifications) | ✅ done (2026-07-10) | Reassessed on request: the `JSON.stringify(bigint)` blocker has a clean 1-line fix — `BigInt.toJSON→Number` shim keeps ids as JSON numbers (API/frontend unchanged). Widened both PKs to BIGINT (cheap now, tables ~empty; notifications fanout could hit the int4 ceiling within 1-2 years at scale). Verified live. PARTITIONING click_logs still deferred (premature at ~0 rows; retention 3b bounds growth). |
+| 3a BIGINT PKs (click_logs + notifications) | ✅ done (2026-07-10) | Reassessed on request: the `JSON.stringify(bigint)` blocker has a clean 1-line fix — `BigInt.toJSON→Number` shim keeps ids as JSON numbers (API/frontend unchanged). Widened both PKs to BIGINT (cheap now, tables ~empty; notifications fanout could hit the int4 ceiling within 1-2 years at scale). Verified live. |
+| click_logs partitioning | ⏸ deferred (breaks CI drift gate — empirically confirmed) | `prisma migrate diff` reports partitioned tables + their child partitions as drift (tested 2026-07-10: it emits `CreateTable` for a partitioned table), so partitioning would FAIL the `integration-db` zero-drift CI gate (Prisma can't model partition children). Also needs a composite `(id, created_at)` PK + table swap + a partition-maintenance cron — all for a 0-row table whose growth is already handled by the retention DELETE (3b). Introduce deliberately when click_logs volume makes the nightly DELETE measurably expensive, alongside relaxing the drift check for partition children. |
 | 3d User soft-delete | ⏸ deferred (YAGNI/gated) | large refactor touching every User read path; gated on the unresolved GDPR/account-deletion timeline (plan Q3). Implement when account deletion becomes a real requirement, not speculatively. |
 
 ### Phase 2 item status (2026-07-10)
@@ -78,8 +79,8 @@ All 4 Critical findings were orchestrator-verified by reading source. One review
 | 2g OAuth stateless nonce | ✅ done | double-submit state cookie, no express-session |
 | 2i upload EXIF strip + cap | ✅ done + tests | sharp re-encode; GIF passthrough; sharp added to backend deps |
 | 2b Redis throttler storage | ✅ done (2026-07-10) | `@nest-lab/throttler-storage-redis` wired via `ThrottlerModule.forRootAsync`; Redis-backed when `REDIS_URL` set (limit holds across instances), in-memory fallback for host dev. Honors the multi-instance-from-day-one decision. |
-| 2d search unify (drop ILIKE) | ⏸ deferred (index-config risk) | `findAll ?search=` ILIKE is a secondary path (primary search = Meili/FTS via /search, already index-backed). Replacing it index-backed while keeping the `{data,nextCursor}` cursor contract needs either a Prisma FTS preview feature whose per-field `to_tsvector` may NOT match the existing combined-field `'simple'` GIN index (→ still seq-scans), or a raw-SQL rewrite diverging from the clean Prisma path. Measure-then-optimize with care, not a blind autonomous change. |
-| 2e tag-based revalidation | ⏸ deferred (low value) | feed is already no-store (Phase 1e); tag invalidation is an optimization, not a correctness fix. |
+| 2d search unify (drop ILIKE) | ✅ done (2026-07-10) | feed `?search=` now runs a raw Postgres FTS query on the existing `posts_search_idx` GIN index (matching `to_tsvector('simple', title\|\|content)`), keyset-paginated by id — no more unindexed ILIKE seq-scan. Verified live (`search=serum` → correct hits; seq-scan only at 15-row test size, index used at scale). |
+| 2e category cache tuning | ✅ done (2026-07-10) | categories cached 1h server-side (rarely change) to cut SSR backend load. On-demand `revalidateTag` intentionally NOT used: mutations go client→NestJS directly (bypass Next), so revalidateTag has nothing to hook — time-based per-resource is the correct fit here. |
 
 ## Dependency Order
 
