@@ -29,9 +29,26 @@ jobs:
       - run: pnpm --filter @app/frontend typecheck
       - run: pnpm --filter @app/backend test
       - run: pnpm build
-        env:
-          # NEXT_PUBLIC_* are inlined at build; localhost fallbacks are fine for CI.
-          NEXT_PUBLIC_API_URL: http://localhost:3066/api
+
+  # Guard against the port-80 regression: the frontend image must be buildable
+  # with NO API build-arg and must NOT bake an absolute API URL into the client
+  # bundle (the browser talks to a relative /api same-origin via nginx).
+  frontend-image-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build frontend image without any API build-arg
+        run: docker build -f apps/frontend/Dockerfile -t fe-guard .
+      - name: Assert no absolute API URL is baked into the client bundle
+        run: |
+          cid=$(docker create fe-guard)
+          docker cp "$cid":/app/apps/frontend/.next/static ./_client_static
+          docker rm "$cid" >/dev/null
+          if grep -rIl -e 'http://localhost/api' -e 'http://localhost:3066/api' ./_client_static; then
+            echo "::error::Absolute API URL baked into client bundle — use the relative /api base"
+            exit 1
+          fi
+          echo "OK: client bundle uses a relative API base"
 
   # Integration checks that need a real database: migrations apply cleanly and
   # the likes→reactions rename preserves data / leaves no drift.
