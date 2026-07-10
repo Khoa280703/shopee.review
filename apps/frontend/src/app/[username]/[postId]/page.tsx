@@ -18,19 +18,34 @@ import type { Post } from '@/types';
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ postId: string }>;
+  params: Promise<{ username: string; postId: string }>;
 }): Promise<Metadata> {
-  const { postId } = await params;
+  const { username, postId } = await params;
   try {
     const post = await postsApi.get(Number(postId), true);
+    const description = post.content?.slice(0, 160) ?? post.title;
+    // Relative asset URLs (local /uploads) are resolved to absolute against
+    // metadataBase by Next; R2 URLs are already absolute. Both yield valid,
+    // crawlable OG/Twitter image URLs.
+    const image = post.images?.[0] ? resolveAssetUrl(post.images[0]) : undefined;
+    const canonical = `/${username}/${post.id}`;
     return {
       title: `${post.title} - ${post.user.displayName}`,
-      description: post.content?.slice(0, 160) ?? post.title,
+      description,
+      alternates: { canonical },
       openGraph: {
         title: post.title,
-        description: post.content?.slice(0, 160) ?? post.title,
-        images: post.images?.[0] ? [resolveAssetUrl(post.images[0])!] : [],
+        description,
+        url: canonical,
         type: 'article',
+        images: image ? [image] : [],
+        authors: [post.user.displayName],
+      },
+      twitter: {
+        card: image ? 'summary_large_image' : 'summary',
+        title: post.title,
+        description,
+        images: image ? [image] : [],
       },
     };
   } catch {
