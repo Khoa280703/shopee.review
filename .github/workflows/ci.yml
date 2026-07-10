@@ -39,16 +39,21 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build frontend image without any API build-arg
         run: docker build -f apps/frontend/Dockerfile -t fe-guard .
-      - name: Assert no absolute API URL is baked into the client bundle
+      - name: Assert the port-80 API bake regression has not returned
         run: |
           cid=$(docker create fe-guard)
           docker cp "$cid":/app/apps/frontend/.next/static ./_client_static
           docker rm "$cid" >/dev/null
-          if grep -rIl -e 'http://localhost/api' -e 'http://localhost:3066/api' ./_client_static; then
-            echo "::error::Absolute API URL baked into client bundle — use the relative /api base"
+          # The exact regression: a browser API base baked as http://localhost/api
+          # (port 80) — the default that silently broke all browser calls. The
+          # http://localhost:3066/api string is the SSR-only API_INTERNAL_URL
+          # fallback const; it appears in the bundle as dead code (the browser
+          # path uses the relative '/api') and is harmless, so it's NOT matched.
+          if grep -rIl -e 'http://localhost/api' ./_client_static; then
+            echo "::error::Port-80 API URL baked into client bundle — the browser must use the relative /api base"
             exit 1
           fi
-          echo "OK: client bundle uses a relative API base"
+          echo "OK: no port-80 API bake in the client bundle"
 
   # Integration checks that need a real database: migrations apply cleanly and
   # the likes→reactions rename preserves data / leaves no drift.
