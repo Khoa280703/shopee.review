@@ -38,9 +38,25 @@ All 4 Critical findings were orchestrator-verified by reading source. One review
 | Phase | Name | Priority | Status |
 |-------|------|----------|--------|
 | 1 | [P0 Critical Hotfixes](./phase-01-p0-critical-hotfixes.md) | P0 | ✅ Completed (2026-07-10) |
-| 2 | [P1 Correctness & Resilience](./phase-02-p1-correctness-resilience.md) | P1 | Planned |
+| 2 | [P1 Correctness & Resilience](./phase-02-p1-correctness-resilience.md) | P1 | 🟡 Partial (2026-07-10) |
 | 3 | [P2 Scale Hardening](./phase-03-p2-scale-hardening.md) | P2 | Planned |
 | 4 | [P3 Platform Features](./phase-04-p3-platform-features.md) | P3 | Planned |
+
+### Phase 2 item status (2026-07-10)
+
+| Item | Status | Note |
+|------|--------|------|
+| 2a stable cursor sort + indexes | ✅ done + migration | latent bug (FE never sends sortBy) |
+| 2c cache fail-safe | ✅ done | try/catch → DB on Redis error |
+| 2j scraper SSRF guard | ✅ done + tests | was mis-rejected earlier — CONFIRMED real, now fixed |
+| 2k notification fire-and-forget | ✅ done | best-effort, never fails parent |
+| 2h redact tokens from URL logs | ✅ done | |
+| 2f auth/verify gate | ✅ no-op | login-gate already complete; decision recorded |
+| 2g OAuth stateless nonce | ✅ done | double-submit state cookie, no express-session |
+| 2i upload EXIF strip + cap | ✅ done + tests | sharp re-encode; GIF passthrough; sharp added to backend deps |
+| 2b Redis throttler storage | ⏸ deferred (YAGNI) | single-node now + nginx per-IP limits externally; a custom node-redis ThrottlerStorage (security-sensitive) or a new ioredis dep isn't justified until actually multi-instance. Revisit at horizontal scale. |
+| 2d search unify (drop ILIKE) | ⏸ deferred (contract risk) | changes findAll `{data,nextCursor}` contract + FE consumer; primary search UX already uses Meili/FTS via /search. Secondary path — do with a paired FE change, not in a long autonomous run. |
+| 2e tag-based revalidation | ⏸ deferred (low value) | feed is already no-store (Phase 1e); tag invalidation is an optimization, not a correctness fix. |
 
 ## Dependency Order
 
