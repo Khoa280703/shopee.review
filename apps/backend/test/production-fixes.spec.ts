@@ -34,6 +34,7 @@ describe('AuthService password reset', () => {
         findUnique: vi.fn().mockResolvedValue(userRow),
         update: vi.fn().mockResolvedValue({}),
       },
+      session: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     };
     const mail = { sendPasswordResetEmail: vi.fn().mockResolvedValue(undefined) };
     const service = new AuthService(

@@ -11,7 +11,11 @@ export type AuthUser = Omit<
   | 'resetToken'
   | 'resetTokenExp'
   | 'tokenVersion'
->;
+> & {
+  // The current session's id (from the JWT `sid` claim), set by JwtStrategy.
+  // Present for tokens issued after session tracking landed; absent for legacy.
+  sessionId?: string;
+};
 
 export const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext): AuthUser => {
   const request = ctx.switchToHttp().getRequest();

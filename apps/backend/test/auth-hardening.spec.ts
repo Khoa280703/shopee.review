@@ -9,6 +9,10 @@ function make(userRow: unknown) {
       findUnique: vi.fn().mockResolvedValue(userRow),
       update: vi.fn().mockResolvedValue(userRow),
     },
+    session: {
+      create: vi.fn().mockResolvedValue({ id: 'sess-1' }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
   };
   const mail = {
     sendVerificationEmail: vi.fn().mockResolvedValue(undefined),
@@ -99,5 +103,47 @@ describe('AuthService.resendVerification', () => {
     await service.resendVerification('a@b.com');
     expect(prisma.user.update).toHaveBeenCalledOnce();
     expect(mail.sendVerificationEmail).toHaveBeenCalledOnce();
+  });
+});
+
+describe('AuthService session management', () => {
+  function svc(sessionMock: Record<string, unknown>) {
+    const prisma = { session: sessionMock };
+    return {
+      service: new AuthService(prisma as never, {} as never, {} as never, {} as never),
+      prisma,
+    };
+  }
+
+  it('revokeSession scopes the delete to the owner', async () => {
+    const { service, prisma } = svc({ deleteMany: vi.fn().mockResolvedValue({ count: 1 }) });
+    await service.revokeSession(7, 'sess-a');
+    expect((prisma.session as { deleteMany: ReturnType<typeof vi.fn> }).deleteMany).toHaveBeenCalledWith({
+      where: { id: 'sess-a', userId: 7 },
+    });
+  });
+
+  it('revokeSession throws when nothing was deleted (not owner / missing)', async () => {
+    const { service } = svc({ deleteMany: vi.fn().mockResolvedValue({ count: 0 }) });
+    await expect(service.revokeSession(7, 'nope')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('revokeOtherSessions keeps the current session', async () => {
+    const { service, prisma } = svc({ deleteMany: vi.fn().mockResolvedValue({ count: 3 }) });
+    await service.revokeOtherSessions(7, 'current-sid');
+    expect((prisma.session as { deleteMany: ReturnType<typeof vi.fn> }).deleteMany).toHaveBeenCalledWith({
+      where: { userId: 7, id: { not: 'current-sid' } },
+    });
+  });
+
+  it('listSessions flags the caller current session', async () => {
+    const rows = [
+      { id: 'a', userAgent: null, ip: null, createdAt: new Date() },
+      { id: 'b', userAgent: null, ip: null, createdAt: new Date() },
+    ];
+    const { service } = svc({ findMany: vi.fn().mockResolvedValue(rows) });
+    const out = await service.listSessions(7, 'b');
+    expect(out.find((s) => s.id === 'b')?.current).toBe(true);
+    expect(out.find((s) => s.id === 'a')?.current).toBe(false);
   });
 });

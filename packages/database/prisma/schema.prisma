@@ -85,8 +85,25 @@ model User {
   reports            Report[]       @relation("Reporter")
   blocking           Block[]        @relation("Blocker")
   blockedBy          Block[]        @relation("Blocked")
+  sessions           Session[]
 
   @@map("users")
+}
+
+// One row per login (device/browser). The JWT carries this row's id (`sid`);
+// deleting the row revokes that session (checked in JwtStrategy). Enables the
+// "active sessions" list + per-device logout without a stateful session store.
+model Session {
+  id        String   @id @default(cuid())
+  userId    Int      @map("user_id")
+  userAgent String?  @map("user_agent") @db.VarChar(400)
+  ip        String?  @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
 }
 
 model Post {

@@ -26,6 +26,12 @@ const COOKIE_NAME = 'auth_token';
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+/** Device/request info captured at login for the active-sessions list. */
+export interface SessionMeta {
+  userAgent?: string | null;
+  ip?: string | null;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -73,14 +79,26 @@ export class AuthService {
     return this.config.get('COOKIE_SECURE') === 'true';
   }
 
-  private setAuthCookie(
+  private async setAuthCookie(
     res: Response,
     user: Pick<User, 'id' | 'username' | 'tokenVersion'>,
-  ): void {
+    meta?: SessionMeta,
+  ): Promise<void> {
+    // One session row per login; its id (`sid`) rides in the JWT so a specific
+    // device can be revoked by deleting the row (checked in JwtStrategy).
+    const session = await this.prisma.session.create({
+      data: {
+        userId: user.id,
+        userAgent: meta?.userAgent?.slice(0, 400) ?? null,
+        ip: meta?.ip ?? null,
+      },
+      select: { id: true },
+    });
     const token = this.jwt.sign({
       sub: user.id,
       username: user.username,
       ver: user.tokenVersion,
+      sid: session.id,
     });
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
@@ -100,7 +118,42 @@ export class AuthService {
     });
   }
 
-  async register(dto: RegisterDto, res: Response): Promise<AuthUser> {
+  /** Log out: revoke THIS session (if any) and clear the cookie. */
+  async logout(res: Response, sessionId?: string): Promise<void> {
+    if (sessionId) {
+      await this.prisma.session.deleteMany({ where: { id: sessionId } });
+    }
+    this.clearAuthCookie(res);
+  }
+
+  /** Active sessions for the account, newest first; flags the caller's own. */
+  async listSessions(userId: number, currentSessionId?: string) {
+    const sessions = await this.prisma.session.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, userAgent: true, ip: true, createdAt: true },
+    });
+    return sessions.map((s) => ({ ...s, current: s.id === currentSessionId }));
+  }
+
+  /** Revoke one session — only if it belongs to the caller. */
+  async revokeSession(userId: number, sessionId: string): Promise<{ success: boolean }> {
+    const result = await this.prisma.session.deleteMany({ where: { id: sessionId, userId } });
+    if (result.count === 0) {
+      throw new NotFoundException('Không tìm thấy phiên đăng nhập');
+    }
+    return { success: true };
+  }
+
+  /** Log out every OTHER device, keeping the caller's current session. */
+  async revokeOtherSessions(userId: number, currentSessionId?: string): Promise<{ count: number }> {
+    const result = await this.prisma.session.deleteMany({
+      where: { userId, id: { not: currentSessionId ?? '' } },
+    });
+    return { count: result.count };
+  }
+
+  async register(dto: RegisterDto, res: Response, meta?: SessionMeta): Promise<AuthUser> {
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ email: dto.email }, { username: dto.username }] },
     });
@@ -126,7 +179,7 @@ export class AuthService {
     });
 
     await this.dispatchVerificationEmail(user.email, verifyToken);
-    this.setAuthCookie(res, user);
+    await this.setAuthCookie(res, user, meta);
     return this.sanitize(user);
   }
 
@@ -141,12 +194,12 @@ export class AuthService {
     return valid ? user : null;
   }
 
-  login(user: User, res: Response): AuthUser {
-    this.setAuthCookie(res, user);
+  async login(user: User, res: Response, meta?: SessionMeta): Promise<AuthUser> {
+    await this.setAuthCookie(res, user, meta);
     return this.sanitize(user);
   }
 
-  async googleLogin(profile: GoogleProfile, res: Response): Promise<AuthUser> {
+  async googleLogin(profile: GoogleProfile, res: Response, meta?: SessionMeta): Promise<AuthUser> {
     if (!profile.email) {
       throw new BadRequestException('Google không trả về email');
     }
@@ -174,11 +227,11 @@ export class AuthService {
       });
     }
 
-    this.setAuthCookie(res, user);
+    await this.setAuthCookie(res, user, meta);
     return this.sanitize(user);
   }
 
-  async facebookLogin(profile: FacebookProfile, res: Response): Promise<AuthUser> {
+  async facebookLogin(profile: FacebookProfile, res: Response, meta?: SessionMeta): Promise<AuthUser> {
     if (!profile.email) {
       // Facebook only returns email if the user granted it; without it we can't
       // create/link a unique account (email is required + unique).
@@ -208,7 +261,7 @@ export class AuthService {
       });
     }
 
-    this.setAuthCookie(res, user);
+    await this.setAuthCookie(res, user, meta);
     return this.sanitize(user);
   }
 
@@ -267,6 +320,8 @@ export class AuthService {
         tokenVersion: { increment: 1 },
       },
     });
+    // Drop all session rows too so the active-sessions list reflects reality.
+    await this.prisma.session.deleteMany({ where: { userId: user.id } });
   }
 
   /**
@@ -279,6 +334,7 @@ export class AuthService {
     currentPassword: string,
     newPassword: string,
     res: Response,
+    meta?: SessionMeta,
   ): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user?.passwordHash) {
@@ -293,8 +349,10 @@ export class AuthService {
       where: { id: userId },
       data: { passwordHash, tokenVersion: { increment: 1 } },
     });
-    // Re-issue this session's cookie at the new version so the user isn't logged out.
-    this.setAuthCookie(res, updated);
+    // Revoke every existing session, then re-issue a fresh one for this device so
+    // the user stays logged in here but all other devices are logged out.
+    await this.prisma.session.deleteMany({ where: { userId } });
+    await this.setAuthCookie(res, updated, meta);
   }
 
   /**

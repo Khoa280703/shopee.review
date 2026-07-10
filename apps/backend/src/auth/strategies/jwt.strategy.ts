@@ -30,6 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     sub: number;
     username: string;
     ver?: number;
+    sid?: string;
   }): Promise<AuthUser> {
     // Single query. Load only what's needed: strip secrets via omit, keep
     // tokenVersion for the revocation check, then remove it before returning.
@@ -57,6 +58,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (authUser.bannedAt) {
       throw new UnauthorizedException('Tài khoản đã bị khóa');
     }
-    return authUser;
+    // Per-device revocation: a token that names a session (sid) is valid only
+    // while that session row exists. Deleting it (logout / "log out other
+    // devices" / password change) kills the token on its next request. Legacy
+    // tokens without sid skip this (they expire naturally / via tokenVersion).
+    if (payload.sid) {
+      const session = await this.prisma.session.findUnique({
+        where: { id: payload.sid },
+        select: { id: true },
+      });
+      if (!session) {
+        throw new UnauthorizedException('Phiên đăng nhập đã bị thu hồi');
+      }
+    }
+    return { ...authUser, sessionId: payload.sid };
   }
 }

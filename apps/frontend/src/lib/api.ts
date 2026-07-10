@@ -1,6 +1,7 @@
 import { API_INTERNAL_URL, API_URL } from './constants';
 import type {
   AppNotification,
+  AuthSession,
   AuthUser,
   Category,
   ClickChart,
@@ -90,6 +91,11 @@ export const authApi = {
     }),
   googleUrl: () => `${API_URL}/auth/google`,
   facebookUrl: () => `${API_URL}/auth/facebook`,
+  sessions: () => apiFetch<AuthSession[]>('/auth/sessions'),
+  revokeSession: (id: string) =>
+    apiFetch<{ success: boolean }>(`/auth/sessions/${id}`, { method: 'DELETE' }),
+  revokeOtherSessions: () =>
+    apiFetch<{ count: number }>('/auth/sessions/others', { method: 'DELETE' }),
 };
 
 // ---------- Posts ----------

@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { buttonClasses } from '@/components/ui/button-classes';
 import { authApi, moderationApi, uploadImage, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import type { AuthSession } from '@/types';
 
 export default function SettingsPage() {
   const { user, loading, refresh, setUser } = useAuth();
@@ -26,6 +27,7 @@ export default function SettingsPage() {
   const [pwMessage, setPwMessage] = useState<string | null>(null);
   const [changingPw, setChangingPw] = useState(false);
   const [blocked, setBlocked] = useState<{ username: string; displayName: string }[]>([]);
+  const [sessions, setSessions] = useState<AuthSession[]>([]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -38,12 +40,23 @@ export default function SettingsPage() {
       setAvatarUrl(user.avatarUrl ?? '');
       setAffiliateId(user.affiliateId ?? '');
       moderationApi.listBlocked().then(setBlocked).catch(() => undefined);
+      authApi.sessions().then(setSessions).catch(() => undefined);
     }
   }, [user, loading, router]);
 
   async function unblock(username: string) {
     await moderationApi.unblock(username);
     setBlocked((prev) => prev.filter((b) => b.username !== username));
+  }
+
+  async function revokeSession(id: string) {
+    await authApi.revokeSession(id);
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+  }
+
+  async function revokeOtherSessions() {
+    await authApi.revokeOtherSessions();
+    setSessions((prev) => prev.filter((s) => s.current));
   }
 
   async function onAvatar(e: React.ChangeEvent<HTMLInputElement>) {
@@ -183,6 +196,45 @@ export default function SettingsPage() {
                 >
                   Bỏ chặn
                 </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="mt-10 rounded-xl border border-outline-variant p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-title-md text-title-md font-semibold text-on-surface">Phiên đăng nhập</h2>
+          {sessions.filter((s) => !s.current).length > 0 && (
+            <button
+              onClick={() => void revokeOtherSessions()}
+              className="rounded-full border border-outline-variant px-3 py-1 text-body-sm text-on-surface hover:bg-surface-container"
+            >
+              Đăng xuất thiết bị khác
+            </button>
+          )}
+        </div>
+        {sessions.length === 0 ? (
+          <p className="mt-2 text-body-sm text-on-surface-variant">Không có phiên nào.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {sessions.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-3">
+                <span className="min-w-0 text-body-sm text-on-surface">
+                  <span className="block truncate">{s.userAgent ?? 'Thiết bị không rõ'}</span>
+                  <span className="text-on-surface-variant">
+                    {s.ip ?? 'IP ẩn'} · {new Date(s.createdAt).toLocaleString('vi-VN')}
+                    {s.current && ' · thiết bị này'}
+                  </span>
+                </span>
+                {!s.current && (
+                  <button
+                    onClick={() => void revokeSession(s.id)}
+                    className="shrink-0 rounded-full border border-outline-variant px-3 py-1 text-body-sm text-on-surface hover:bg-surface-container"
+                  >
+                    Đăng xuất
+                  </button>
+                )}
               </li>
             ))}
           </ul>

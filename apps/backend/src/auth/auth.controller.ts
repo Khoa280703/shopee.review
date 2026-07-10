@@ -2,7 +2,9 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
   Post,
   Query,
   Req,
@@ -26,8 +28,14 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { FacebookAuthGuard } from './guards/facebook-auth.guard';
+import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { verifyOAuthState } from '../common/oauth-state';
 import type { FacebookProfile } from './strategies/facebook.strategy';
+import type { SessionMeta } from './auth.service';
+
+function sessionMeta(req: Request): SessionMeta {
+  return { userAgent: req.headers['user-agent'] ?? null, ip: req.ip ?? null };
+}
 import type { GoogleProfile } from './strategies/google.strategy';
 
 @Controller('auth')
@@ -41,29 +49,37 @@ export class AuthController {
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   async register(
+    @Req() req: Request,
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ user: AuthUser }> {
-    const user = await this.authService.register(dto, res);
+    const user = await this.authService.register(dto, res, sessionMeta(req));
     return { user };
   }
 
   @Post('login')
   @UseGuards(ThrottlerGuard, LocalAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 15 * 60 * 1000 } })
-  login(
+  async login(
+    @Req() req: Request,
     @Body() _dto: LoginDto,
     // LocalStrategy puts the full user row on the request; login() signs the
     // cookie (needs tokenVersion) and returns the sanitized shape.
     @CurrentUser() user: User,
     @Res({ passthrough: true }) res: Response,
-  ): { user: AuthUser } {
-    return { user: this.authService.login(user, res) };
+  ): Promise<{ user: AuthUser }> {
+    return { user: await this.authService.login(user, res, sessionMeta(req)) };
   }
 
+  // Optional guard: a valid token lets us revoke its session row; an expired /
+  // missing token still clears the cookie (logout must never fail).
   @Post('logout')
-  logout(@Res({ passthrough: true }) res: Response): { success: boolean } {
-    this.authService.clearAuthCookie(res);
+  @UseGuards(OptionalJwtAuthGuard)
+  async logout(
+    @CurrentUser() user: AuthUser | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ success: boolean }> {
+    await this.authService.logout(res, user?.sessionId);
     return { success: true };
   }
 
@@ -114,6 +130,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   async changePassword(
+    @Req() req: Request,
     @CurrentUser() user: AuthUser,
     @Body() dto: ChangePasswordDto,
     @Res({ passthrough: true }) res: Response,
@@ -123,6 +140,7 @@ export class AuthController {
       dto.currentPassword,
       dto.newPassword,
       res,
+      sessionMeta(req),
     );
     return { success: true };
   }
@@ -150,7 +168,7 @@ export class AuthController {
       return;
     }
 
-    await this.authService.googleLogin(req.user as GoogleProfile, res);
+    await this.authService.googleLogin(req.user as GoogleProfile, res, sessionMeta(req));
     res.redirect(`${frontendUrl}/auth/callback`);
   }
 
@@ -168,7 +186,26 @@ export class AuthController {
       res.redirect(`${frontendUrl}/auth/login?error=oauth_state`);
       return;
     }
-    await this.authService.facebookLogin(req.user as FacebookProfile, res);
+    await this.authService.facebookLogin(req.user as FacebookProfile, res, sessionMeta(req));
     res.redirect(`${frontendUrl}/auth/callback`);
+  }
+
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  listSessions(@CurrentUser() user: AuthUser) {
+    return this.authService.listSessions(user.id, user.sessionId);
+  }
+
+  // "/others" before "/:id" so it isn't captured as an id param.
+  @Delete('sessions/others')
+  @UseGuards(JwtAuthGuard)
+  revokeOtherSessions(@CurrentUser() user: AuthUser) {
+    return this.authService.revokeOtherSessions(user.id, user.sessionId);
+  }
+
+  @Delete('sessions/:id')
+  @UseGuards(JwtAuthGuard)
+  revokeSession(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.authService.revokeSession(user.id, id);
   }
 }

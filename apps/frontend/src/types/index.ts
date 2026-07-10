@@ -138,3 +138,11 @@ export interface ClickChart {
   data: { date: string; clicks: number }[];
   total: number;
 }
+
+export interface AuthSession {
+  id: string;
+  userAgent: string | null;
+  ip: string | null;
+  createdAt: string;
+  current: boolean;
+}
