@@ -50,7 +50,7 @@ All 4 Critical findings were orchestrator-verified by reading source. One review
 | Admin audit log | ✅ done + migration | append-only `admin_audit_logs`; logs ban/unban/delete/resolve; `GET /admin/audit` (admin UI table can consume later) |
 | Facebook login | ✅ done (code-ready) | strategy+guard+service+migration+buttons; blank env = off. Needs user's Facebook App ID/Secret to activate. |
 | Session mgmt (list + revoke devices) | ✅ done + migration + tests | Session row per login (sid in JWT), JwtStrategy revokes on missing row; `/auth/sessions` list + revoke one + revoke-others; settings UI; retention sweep for expired sessions. Verified live (revoke device2 → 401, device1 stays 200). Reviewed: 0 Critical; H1 (session retention) + M2 (revoke-others guard) fixed. |
-| WS session-check parity | ⏸ deferred (low impact) | social.gateway checks tokenVersion+ban but not session `sid`; a revoked device keeps its WebSocket. Read-only broadcast + no userId-gated emits → low risk. Revisit if WS ever gates private data. |
+| WS session-check parity | ✅ done (2026-07-10) | social.gateway now checks the session `sid` on connect (mirrors JwtStrategy); a device revoked over HTTP no longer stays authenticated on the socket. |
 | 2FA (TOTP), phone/OTP, feed fanout | ⏸ roadmap | not selected / needs decisions (SMS provider) |
 
 ### Phase 3 item status (2026-07-10)
@@ -77,8 +77,8 @@ All 4 Critical findings were orchestrator-verified by reading source. One review
 | 2f auth/verify gate | ✅ no-op | login-gate already complete; decision recorded |
 | 2g OAuth stateless nonce | ✅ done | double-submit state cookie, no express-session |
 | 2i upload EXIF strip + cap | ✅ done + tests | sharp re-encode; GIF passthrough; sharp added to backend deps |
-| 2b Redis throttler storage | ⏸ deferred (YAGNI) | single-node now + nginx per-IP limits externally; a custom node-redis ThrottlerStorage (security-sensitive) or a new ioredis dep isn't justified until actually multi-instance. Revisit at horizontal scale. |
-| 2d search unify (drop ILIKE) | ⏸ deferred (contract risk) | changes findAll `{data,nextCursor}` contract + FE consumer; primary search UX already uses Meili/FTS via /search. Secondary path — do with a paired FE change, not in a long autonomous run. |
+| 2b Redis throttler storage | ✅ done (2026-07-10) | `@nest-lab/throttler-storage-redis` wired via `ThrottlerModule.forRootAsync`; Redis-backed when `REDIS_URL` set (limit holds across instances), in-memory fallback for host dev. Honors the multi-instance-from-day-one decision. |
+| 2d search unify (drop ILIKE) | ⏸ deferred (index-config risk) | `findAll ?search=` ILIKE is a secondary path (primary search = Meili/FTS via /search, already index-backed). Replacing it index-backed while keeping the `{data,nextCursor}` cursor contract needs either a Prisma FTS preview feature whose per-field `to_tsvector` may NOT match the existing combined-field `'simple'` GIN index (→ still seq-scans), or a raw-SQL rewrite diverging from the clean Prisma path. Measure-then-optimize with care, not a blind autonomous change. |
 | 2e tag-based revalidation | ⏸ deferred (low value) | feed is already no-store (Phase 1e); tag invalidation is an optimization, not a correctness fix. |
 
 ## Dependency Order

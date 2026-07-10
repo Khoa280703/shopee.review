@@ -46,6 +46,7 @@ export class SocialGateway
         sub: number;
         username: string;
         ver?: number;
+        sid?: string;
       }>(token);
       // The gateway verifies tokens directly (not via JwtStrategy), so it must
       // replicate the revocation + ban checks — otherwise a revoked/banned user
@@ -56,6 +57,15 @@ export class SocialGateway
       });
       if (!user || user.bannedAt || (payload.ver ?? 0) !== user.tokenVersion) {
         return;
+      }
+      // Session parity with JwtStrategy: a device revoked over HTTP (its session
+      // row deleted) must not stay authenticated on the socket either.
+      if (payload.sid) {
+        const session = await this.prisma.session.findUnique({
+          where: { id: payload.sid },
+          select: { id: true },
+        });
+        if (!session) return;
       }
       client.data.userId = payload.sub;
       client.data.username = payload.username;

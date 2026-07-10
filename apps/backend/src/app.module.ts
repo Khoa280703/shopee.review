@@ -5,6 +5,7 @@ import { redisStore } from 'cache-manager-redis-yet';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
@@ -92,7 +93,17 @@ import { UsersModule } from './users/users.module';
     // generous so a normal browsing session (feed load-more + reactions +
     // comments + unread-count poll) never trips a false 429. Sensitive routes
     // (login/register/...) set tighter per-route @Throttle overrides.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+    // Redis-backed storage when REDIS_URL is set so the limit holds ACROSS
+    // instances (in-memory would let each instance grant the full quota).
+    // Falls back to in-memory for host-based dev with no Redis.
+    ThrottlerModule.forRootAsync({
+      useFactory: () => ({
+        throttlers: [{ ttl: 60_000, limit: 300 }],
+        storage: process.env.REDIS_URL
+          ? new ThrottlerStorageRedisService(process.env.REDIS_URL)
+          : undefined,
+      }),
+    }),
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async () => {
