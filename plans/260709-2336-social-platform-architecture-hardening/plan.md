@@ -62,7 +62,7 @@ All 4 Critical findings were orchestrator-verified by reading source. One review
 | 3e X-Forwarded-Proto = real scheme | ✅ done | nginx map, config tested |
 | 3f CI bake-URL guard | ✅ done | fails if client bundle bakes absolute API URL |
 | 3g reaction optimistic + reconcile | ✅ done | rapid-tap race fixed |
-| 3a BIGINT PKs + partition click_logs | ⏸ deferred (new evidence) | BIGINT PK is NOT "cheap": `notification.id`/`click_log.id` become JS `bigint` → `JSON.stringify` throws (SSE/API serialization) + type ripple through ParseIntPipe/DTOs. Int4 exhaustion (~2.1B rows) is far off; partitioning a ~0-row table is premature. Retention (3b) already bounds growth. Do when volume actually warrants, with the serialization handled. |
+| 3a BIGINT PKs (click_logs + notifications) | ✅ done (2026-07-10) | Reassessed on request: the `JSON.stringify(bigint)` blocker has a clean 1-line fix — `BigInt.toJSON→Number` shim keeps ids as JSON numbers (API/frontend unchanged). Widened both PKs to BIGINT (cheap now, tables ~empty; notifications fanout could hit the int4 ceiling within 1-2 years at scale). Verified live. PARTITIONING click_logs still deferred (premature at ~0 rows; retention 3b bounds growth). |
 | 3d User soft-delete | ⏸ deferred (YAGNI/gated) | large refactor touching every User read path; gated on the unresolved GDPR/account-deletion timeline (plan Q3). Implement when account deletion becomes a real requirement, not speculatively. |
 
 ### Phase 2 item status (2026-07-10)
