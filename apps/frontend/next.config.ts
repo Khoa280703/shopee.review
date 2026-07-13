@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '**.r2.cloudflarestorage.com' },
       { protocol: 'https', hostname: 'cf.shopee.vn' },
       { protocol: 'https', hostname: 'down-vn.img.susercontent.com' },
+      // OAuth provider avatars (Google + Facebook) — captured on social login.
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
+      { protocol: 'https', hostname: 'platform-lookaside.fbsbx.com' },
+      { protocol: 'https', hostname: '**.fbcdn.net' },
       // Smoke/demo data hosts.
       { protocol: 'https', hostname: 'picsum.photos' },
       { protocol: 'https', hostname: 'fastly.picsum.photos' },

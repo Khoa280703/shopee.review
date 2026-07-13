@@ -73,6 +73,13 @@ export function SidebarNav() {
           {user ? (
             <>
               <Link
+                href={`/${user.username}`}
+                title={`@${user.username} — Trang cá nhân`}
+                className="flex h-12 w-12 items-center justify-center rounded-xl transition-all hover:bg-surface-container-high"
+              >
+                <Avatar src={user.avatarUrl} name={user.displayName} size={32} />
+              </Link>
+              <Link
                 href="/settings"
                 title="Cài đặt"
                 className="flex h-12 w-12 items-center justify-center rounded-xl text-on-surface-variant transition-all hover:bg-surface-container-high"
@@ -81,10 +88,10 @@ export function SidebarNav() {
               </Link>
               <button
                 onClick={() => { void logout(); router.push('/'); }}
-                title={`@${user.username} — Đăng xuất`}
-                className="flex h-12 w-12 items-center justify-center rounded-xl transition-all hover:bg-error-container"
+                title="Đăng xuất"
+                className="flex h-12 w-12 items-center justify-center rounded-xl text-on-surface-variant transition-all hover:bg-error-container"
               >
-                <Avatar src={user.avatarUrl} name={user.displayName} size={32} />
+                <Icon name="logout" className="text-[24px]" />
               </button>
             </>
           ) : (
