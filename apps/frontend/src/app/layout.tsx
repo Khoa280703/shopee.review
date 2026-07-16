@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
+import { ThemeProvider } from '@/components/providers/theme-provider';
 import { Header } from '@/components/layout/header';
 import { MobileNav } from '@/components/layout/mobile-nav';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
@@ -39,23 +40,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const locale = await getLocale();
   const messages = await getMessages();
   return (
-    <html lang={locale} className={inter.variable}>
+    <html lang={locale} className={inter.variable} suppressHydrationWarning>
       <body className={`${inter.className} bg-background text-on-background`}>
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <QueryProvider>
-            <AuthProvider>
-              <SocketProvider>
-                {/* Top header — only on mobile/tablet */}
-                <Header />
-                {/* Desktop left sidebar */}
-                <SidebarNav />
-                {/* Main content — shifted right on desktop to clear the fixed sidebar */}
-                <main className="min-h-screen pb-20 lg:ml-[72px] lg:pb-10">{children}</main>
-                {/* Bottom nav — only on mobile */}
-                <MobileNav />
-              </SocketProvider>
-            </AuthProvider>
-          </QueryProvider>
+          <ThemeProvider>
+            <QueryProvider>
+              <AuthProvider>
+                <SocketProvider>
+                  {/* Top header — only on mobile/tablet */}
+                  <Header />
+                  {/* Desktop left sidebar */}
+                  <SidebarNav />
+                  {/* Main content — shifted right on desktop to clear the fixed sidebar */}
+                  <main className="min-h-screen pb-20 lg:ml-[72px] lg:pb-10">{children}</main>
+                  {/* Bottom nav — only on mobile */}
+                  <MobileNav />
+                </SocketProvider>
+              </AuthProvider>
+            </QueryProvider>
+          </ThemeProvider>
         </NextIntlClientProvider>
       </body>
     </html>

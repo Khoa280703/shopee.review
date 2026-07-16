@@ -4,6 +4,120 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens as RGB channels (see tailwind.config.ts). `:root` = light,
+   `.dark` = dark (toggled by next-themes on <html>). */
+:root {
+    --c-secondary-fixed-dim: 255 180 165;
+    --c-surface-container-lowest: 255 255 255;
+    --c-surface-container-low: 246 243 242;
+    --c-outline: 143 112 105;
+    --c-background: 252 249 248;
+    --c-surface-container: 240 237 237;
+    --c-error: 186 26 26;
+    --c-on-tertiary-fixed-variant: 0 69 145;
+    --c-tertiary-container: 36 114 220;
+    --c-inverse-surface: 48 48 48;
+    --c-primary: 178 34 4;
+    --c-surface-bright: 252 249 248;
+    --c-surface-variant: 229 226 225;
+    --c-primary-container: 214 60 30;
+    --c-primary-fixed: 255 218 211;
+    --c-inverse-on-surface: 243 240 239;
+    --c-tertiary-fixed: 215 226 255;
+    --c-on-error-container: 147 0 10;
+    --c-on-secondary-fixed-variant: 134 34 15;
+    --c-on-secondary-fixed: 62 4 0;
+    --c-on-secondary-container: 112 17 2;
+    --c-secondary-container: 253 121 94;
+    --c-surface: 252 249 248;
+    --c-on-secondary: 255 255 255;
+    --c-secondary: 167 57 36;
+    --c-surface-container-high: 234 231 231;
+    --c-surface-tint: 182 37 6;
+    --c-surface-dim: 220 217 217;
+    --c-on-primary-fixed: 62 5 0;
+    --c-on-primary-fixed-variant: 141 22 0;
+    --c-primary-fixed-dim: 255 180 164;
+    --c-on-tertiary: 255 255 255;
+    --c-on-background: 27 27 28;
+    --c-outline-variant: 227 190 182;
+    --c-on-surface-variant: 91 64 59;
+    --c-on-primary: 255 255 255;
+    --c-tertiary-fixed-dim: 172 199 255;
+    --c-on-primary-container: 255 251 255;
+    --c-on-surface: 27 27 28;
+    --c-error-container: 255 218 214;
+    --c-secondary-fixed: 255 218 211;
+    --c-on-tertiary-fixed: 0 26 64;
+    --c-inverse-primary: 255 180 164;
+    --c-surface-container-highest: 229 226 225;
+    --c-tertiary: 0 89 185;
+    --c-on-error: 255 255 255;
+    --c-on-tertiary-container: 254 252 255;
+    --c-rating: 249 188 0;
+    --c-like: 249 24 128;
+    --c-warning-surface: 255 251 235;
+    --c-warning-border: 253 230 138;
+    --c-warning-on: 180 83 9;
+    --c-brand: 178 34 4;
+}
+
+.dark {
+    --c-secondary-fixed-dim: 255 180 165;
+    --c-surface-container-lowest: 14 14 14;
+    --c-surface-container-low: 28 27 27;
+    --c-outline: 166 139 132;
+    --c-background: 19 19 19;
+    --c-surface-container: 32 31 31;
+    --c-error: 255 180 171;
+    --c-on-tertiary-fixed-variant: 215 226 255;
+    --c-tertiary-container: 0 69 145;
+    --c-inverse-surface: 229 226 225;
+    --c-primary: 255 180 164;
+    --c-surface-bright: 58 57 57;
+    --c-surface-variant: 83 67 65;
+    --c-primary-container: 141 22 0;
+    --c-primary-fixed: 255 218 211;
+    --c-inverse-on-surface: 48 48 48;
+    --c-tertiary-fixed: 215 226 255;
+    --c-on-error-container: 255 218 214;
+    --c-on-secondary-fixed-variant: 255 219 208;
+    --c-on-secondary-fixed: 255 219 208;
+    --c-on-secondary-container: 255 219 208;
+    --c-secondary-container: 134 38 17;
+    --c-surface: 19 19 19;
+    --c-on-secondary: 86 31 15;
+    --c-secondary: 255 181 159;
+    --c-surface-container-high: 43 42 42;
+    --c-surface-tint: 255 180 164;
+    --c-surface-dim: 19 19 19;
+    --c-on-primary-fixed: 62 5 0;
+    --c-on-primary-fixed-variant: 141 22 0;
+    --c-primary-fixed-dim: 255 180 164;
+    --c-on-tertiary: 0 47 102;
+    --c-on-background: 229 226 225;
+    --c-outline-variant: 83 67 63;
+    --c-on-surface-variant: 216 194 189;
+    --c-on-primary: 100 19 0;
+    --c-tertiary-fixed-dim: 172 199 255;
+    --c-on-primary-container: 255 218 211;
+    --c-on-surface: 229 226 225;
+    --c-error-container: 147 0 10;
+    --c-secondary-fixed: 255 218 211;
+    --c-on-tertiary-fixed: 0 26 64;
+    --c-inverse-primary: 178 34 4;
+    --c-surface-container-highest: 54 53 53;
+    --c-tertiary: 172 199 255;
+    --c-on-error: 105 0 5;
+    --c-on-tertiary-container: 215 226 255;
+    --c-rating: 255 213 74;
+    --c-like: 249 24 128;
+    --c-warning-surface: 58 47 0;
+    --c-warning-border: 92 74 0;
+    --c-warning-on: 255 213 74;
+    --c-brand: 255 180 164;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -14,8 +128,8 @@ body {
 }
 
 body {
-  background-color: #fcf9f8;
-  color: #1b1b1c;
+  background-color: rgb(var(--c-background));
+  color: rgb(var(--c-on-background));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -59,6 +173,6 @@ body {
   width: 6px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: #e3beb6;
+  background-color: rgb(var(--c-outline-variant));
   border-radius: 9999px;
 }

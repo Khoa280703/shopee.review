@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { buttonClasses } from '@/components/ui/button-classes';
 import { authApi, moderationApi, uploadImage, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import type { AuthSession } from '@/types';
 
 export default function SettingsPage() {
@@ -116,6 +117,11 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-lg">
       <h1 className="mb-6 font-display-lg-mobile text-display-lg-mobile font-bold text-on-surface">Cài đặt</h1>
+
+      <div className="mb-6">
+        <AppearanceSettings />
+      </div>
+
       <form onSubmit={save} className="space-y-5">
         <div className="flex items-center gap-4">
           <Avatar src={avatarUrl} name={displayName || user.username} size={64} />
