@@ -13,6 +13,7 @@ export default function SavedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [cursor, setCursor] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
@@ -21,13 +22,14 @@ export default function SavedPage() {
       router.replace('/auth/login');
       return;
     }
+    setFailed(false);
     socialApi
       .bookmarks()
       .then((page) => {
         setPosts(page.data);
         setCursor(page.nextCursor);
       })
-      .catch(() => undefined)
+      .catch(() => setFailed(true))
       .finally(() => setLoaded(true));
   }, [user, loading, router]);
 
@@ -52,7 +54,11 @@ export default function SavedPage() {
       <h1 className="mb-md px-4 font-display-lg-mobile text-display-lg-mobile font-bold text-on-surface sm:px-0">
         Đã lưu
       </h1>
-      {loaded && posts.length === 0 ? (
+      {loaded && failed ? (
+        <p className="mx-4 rounded-xl border border-dashed border-error/40 py-16 text-center text-on-surface-variant sm:mx-0">
+          Không tải được danh sách đã lưu. Vui lòng thử lại.
+        </p>
+      ) : loaded && posts.length === 0 ? (
         <p className="mx-4 rounded-xl border border-dashed border-outline-variant py-16 text-center text-on-surface-variant sm:mx-0">
           Bạn chưa lưu bài viết nào.
         </p>

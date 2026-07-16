@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { useNotifications } from '@/hooks/use-notifications';
-import { timeAgo } from '@/lib/format';
+import { TimeAgo } from '@/components/ui/time-ago';
 import { cn } from '@/lib/cn';
 import type { AppNotification, NotificationType } from '@/types';
 
@@ -36,10 +36,16 @@ export default function NotificationsPage() {
     useNotifications();
   const [tab, setTab] = useState<'all' | NotificationType>('all');
 
+  // unreadCount is 0 on first render (the hook fetches it async), so a mount-only
+  // effect never saw it > 0 and never marked anything read. Fire once it actually
+  // loads, guarded so it runs a single time.
+  const hasMarked = useRef(false);
   useEffect(() => {
-    if (unreadCount > 0) void markAllRead();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!hasMarked.current && unreadCount > 0) {
+      hasMarked.current = true;
+      void markAllRead();
+    }
+  }, [unreadCount, markAllRead]);
 
   const filtered = tab === 'all' ? notifications : notifications.filter((n) => n.type === tab);
 
@@ -49,9 +55,6 @@ export default function NotificationsPage() {
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-surface-container-high bg-background/95 px-4 py-sm backdrop-blur-sm sm:px-0">
           <h1 className="font-display-lg-mobile text-display-lg-mobile text-on-background">Thông báo</h1>
-          <button className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container">
-            <Icon name="settings" />
-          </button>
         </div>
 
         {/* Filter chips */}
@@ -108,7 +111,7 @@ export default function NotificationsPage() {
                         “{n.post.title}”
                       </p>
                     )}
-                    <span className="font-label-caps text-label-caps uppercase text-outline">{timeAgo(n.createdAt)}</span>
+                    <TimeAgo date={n.createdAt} className="font-label-caps text-label-caps uppercase text-outline" />
                   </div>
                 </Link>
               );

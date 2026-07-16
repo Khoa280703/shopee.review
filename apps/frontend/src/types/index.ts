@@ -3,6 +3,7 @@ export interface UserSummary {
   displayName: string;
   avatarUrl?: string | null;
   bio?: string | null;
+  verified?: boolean;
 }
 
 export interface Category {
@@ -49,6 +50,7 @@ export interface UserProfile {
   displayName: string;
   bio?: string | null;
   avatarUrl?: string | null;
+  verified?: boolean;
   totalClicks: number;
   followersCount: number;
   followingCount: number;

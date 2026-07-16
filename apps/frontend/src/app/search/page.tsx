@@ -20,6 +20,7 @@ function SearchInner() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const q = initialQ.trim();
@@ -29,13 +30,14 @@ function SearchInner() {
       return;
     }
     setLoading(true);
+    setFailed(false);
     searchApi
       .query(q, 'all')
       .then((res) => {
         setPosts(res.posts);
         setUsers(res.users);
       })
-      .catch(() => undefined)
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, [initialQ]);
 
@@ -80,6 +82,8 @@ function SearchInner() {
 
           {loading ? (
             <p className="text-body-sm text-on-surface-variant">Đang tìm...</p>
+          ) : failed ? (
+            <p className="text-body-sm text-error">Tìm kiếm thất bại. Vui lòng thử lại.</p>
           ) : tab === 'posts' ? (
             <PostGrid posts={posts} />
           ) : (

@@ -36,6 +36,8 @@ export async function middleware(req: NextRequest) {
   if (!isProtected) return NextResponse.next();
 
   const loginUrl = new URL('/auth/login', req.url);
+  // Preserve where the user was headed so login can send them back there.
+  loginUrl.searchParams.set('next', pathname + req.nextUrl.search);
   const token = req.cookies.get('auth_token')?.value;
 
   if (!token || !(await isValidToken(token))) {

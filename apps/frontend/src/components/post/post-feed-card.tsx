@@ -7,7 +7,8 @@ import { ReactionButton } from '@/components/social/reaction-button';
 import { ShareButton } from '@/components/social/share-button';
 import { PostActionContent, postActionWrapperClass } from './post-action-button';
 import { clickRedirectUrl, resolveAssetUrl } from '@/lib/constants';
-import { formatPrice, timeAgo } from '@/lib/format';
+import { formatPrice } from '@/lib/format';
+import { TimeAgo } from '@/components/ui/time-ago';
 import type { Post } from '@/types';
 
 export function PostFeedCard({ post }: { post: Post }) {
@@ -33,10 +34,12 @@ export function PostFeedCard({ post }: { post: Post }) {
             >
               {post.user.displayName}
             </Link>
-            <Icon name="verified" fill className="text-[16px] text-tertiary" />
+            {post.user.verified && (
+              <Icon name="verified" fill className="text-[16px] text-tertiary" />
+            )}
             <span className="truncate font-body-sm text-body-sm text-on-surface-variant">
               <span className="hidden sm:inline">@{post.user.username} • </span>
-              {timeAgo(post.createdAt)}
+              <TimeAgo date={post.createdAt} />
             </span>
           </div>
         </div>

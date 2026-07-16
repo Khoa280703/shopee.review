@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { adminApi, type AdminReport } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
-import { timeAgo } from '@/lib/format';
+import { TimeAgo } from '@/components/ui/time-ago';
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
@@ -57,7 +57,7 @@ export default function AdminPage() {
                 <span className="rounded-full bg-error/10 px-2 py-0.5 font-semibold text-error">{r.reason}</span>
                 <span className="font-semibold">{r.targetType} #{r.targetId}</span>
                 <span className="text-on-surface-variant">bởi @{r.reporter.username}</span>
-                <span className="text-outline">· {timeAgo(r.createdAt)}</span>
+                <span className="text-outline">· <TimeAgo date={r.createdAt} /></span>
               </div>
               {r.detail && <p className="mb-3 text-body-sm text-on-surface-variant">“{r.detail}”</p>}
               <div className="flex flex-wrap gap-2">

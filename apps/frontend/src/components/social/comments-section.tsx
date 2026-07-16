@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { socialApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { timeAgo } from '@/lib/format';
+import { TimeAgo } from '@/components/ui/time-ago';
 import type { Comment } from '@/types';
 import { useCommentSocket } from './use-comment-socket';
 
@@ -63,7 +63,7 @@ function CommentItem({
               {comment.user.displayName}
             </Link>
             <span className="font-body-sm text-label-caps text-on-surface-variant">
-              @{comment.user.username} • {timeAgo(comment.createdAt)}
+              @{comment.user.username} • <TimeAgo date={comment.createdAt} />
             </span>
           </div>
           <p className="mt-1 whitespace-pre-wrap font-body-md text-body-sm text-on-surface">{comment.content}</p>
@@ -129,6 +129,7 @@ export function CommentsSection({ postId }: { postId: number }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     socialApi
@@ -146,9 +147,14 @@ export function CommentsSection({ postId }: { postId: number }) {
       return;
     }
     if (!text.trim()) return;
-    const created = await socialApi.addComment(postId, text.trim());
-    setComments((prev) => [{ ...created, replies: [] }, ...prev]);
-    setText('');
+    setError(null);
+    try {
+      const created = await socialApi.addComment(postId, text.trim());
+      setComments((prev) => [{ ...created, replies: [] }, ...prev]);
+      setText('');
+    } catch {
+      setError('Không gửi được bình luận. Vui lòng thử lại.');
+    }
   }
 
   async function reply(parentId: number, content: string) {
@@ -156,18 +162,23 @@ export function CommentsSection({ postId }: { postId: number }) {
       router.push('/auth/login');
       return;
     }
-    const created = await socialApi.addComment(postId, content, parentId);
-    setComments((prev) =>
-      prev.map((c) =>
-        c.id === parentId
-          ? {
-              ...c,
-              replies: [...(c.replies ?? []), created],
-              replyCount: (c.replyCount ?? c.replies?.length ?? 0) + 1,
-            }
-          : c,
-      ),
-    );
+    setError(null);
+    try {
+      const created = await socialApi.addComment(postId, content, parentId);
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === parentId
+            ? {
+                ...c,
+                replies: [...(c.replies ?? []), created],
+                replyCount: (c.replyCount ?? c.replies?.length ?? 0) + 1,
+              }
+            : c,
+        ),
+      );
+    } catch {
+      setError('Không gửi được trả lời. Vui lòng thử lại.');
+    }
   }
 
   async function loadMoreReplies(parentId: number) {
@@ -187,12 +198,17 @@ export function CommentsSection({ postId }: { postId: number }) {
   }
 
   async function remove(id: number) {
-    await socialApi.deleteComment(id);
-    setComments((prev) =>
-      prev
-        .filter((c) => c.id !== id)
-        .map((c) => ({ ...c, replies: c.replies?.filter((r) => r.id !== id) })),
-    );
+    setError(null);
+    try {
+      await socialApi.deleteComment(id);
+      setComments((prev) =>
+        prev
+          .filter((c) => c.id !== id)
+          .map((c) => ({ ...c, replies: c.replies?.filter((r) => r.id !== id) })),
+      );
+    } catch {
+      setError('Không xoá được bình luận. Vui lòng thử lại.');
+    }
   }
 
   return (
@@ -210,6 +226,7 @@ export function CommentsSection({ postId }: { postId: number }) {
         />
         <Button onClick={addTopComment}>Gửi</Button>
       </div>
+      {error && <p className="text-body-sm text-error">{error}</p>}
 
       {loading ? (
         <p className="text-body-sm text-on-surface-variant">Đang tải bình luận...</p>

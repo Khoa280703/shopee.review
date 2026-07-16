@@ -59,7 +59,11 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
     queryKey: key,
     queryFn: () => socialApi.reactionStatus(postId),
     enabled: !!user,
-    initialData: { type: null, counts: { LIKE: initialCount } },
+    // placeholderData (not initialData): initialData is treated as real, fresh
+    // cache, so the query never fetched and a user's OWN existing reaction wasn't
+    // shown — the first tap then toggled the wrong way. placeholderData renders
+    // the counts immediately but still fetches the real status on mount.
+    placeholderData: { type: null, counts: { LIKE: initialCount } },
   });
 
   const { mutate } = useMutation({

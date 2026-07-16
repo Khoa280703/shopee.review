@@ -21,14 +21,16 @@ interface Props {
 export function ReportDialog({ targetType, targetId, onClose }: Props) {
   const [reason, setReason] = useState<ReportReason>('SPAM');
   const [detail, setDetail] = useState('');
-  const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle');
+  const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
 
   async function submit() {
     setState('sending');
     try {
       await moderationApi.report(targetType, targetId, reason, detail || undefined);
-    } finally {
       setState('done');
+    } catch {
+      // Never show success on failure — the report would be silently lost.
+      setState('error');
     }
   }
 
@@ -71,10 +73,15 @@ export function ReportDialog({ targetType, targetId, onClose }: Props) {
               placeholder="Mô tả thêm (tuỳ chọn)"
               className="w-full rounded-lg border border-outline-variant bg-surface-container p-2 text-body-sm text-on-surface"
             />
+            {state === 'error' && (
+              <p className="text-body-sm text-error">
+                Gửi báo cáo thất bại. Vui lòng thử lại.
+              </p>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" fullWidth onClick={onClose}>Huỷ</Button>
               <Button fullWidth onClick={submit} disabled={state === 'sending'}>
-                {state === 'sending' ? 'Đang gửi...' : 'Gửi báo cáo'}
+                {state === 'sending' ? 'Đang gửi...' : state === 'error' ? 'Thử lại' : 'Gửi báo cáo'}
               </Button>
             </div>
           </div>

@@ -17,6 +17,14 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Where to go after login: the `?next=` set by the middleware, restricted to
+  // internal absolute paths so it can't be abused as an open redirect.
+  function nextTarget(): string {
+    if (typeof window === 'undefined') return '/';
+    const next = new URLSearchParams(window.location.search).get('next');
+    return next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -24,7 +32,7 @@ export default function LoginPage() {
     try {
       const { user } = await authApi.login({ email, password });
       setUser(user);
-      router.push('/');
+      router.push(nextTarget());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đăng nhập thất bại');
     } finally {

@@ -21,8 +21,10 @@ export async function generateMetadata({
   params: Promise<{ username: string; postId: string }>;
 }): Promise<Metadata> {
   const { username, postId } = await params;
+  const id = Number(postId);
+  if (!Number.isInteger(id) || id <= 0) return { title: 'Bài review' };
   try {
-    const post = await postsApi.get(Number(postId), true);
+    const post = await postsApi.get(id, true);
     const description = post.content?.slice(0, 160) ?? post.title;
     // Relative asset URLs (local /uploads) are resolved to absolute against
     // metadataBase by Next; R2 URLs are already absolute. Both yield valid,
@@ -60,9 +62,14 @@ export default async function PostDetailPage({
 }) {
   const { postId } = await params;
 
+  // A non-numeric id (junk URL, crawler) would reach the backend as NaN and 400,
+  // surfacing as a 500 error page. Treat it as not-found instead.
+  const id = Number(postId);
+  if (!Number.isInteger(id) || id <= 0) notFound();
+
   let post: Post;
   try {
-    post = await postsApi.get(Number(postId), true);
+    post = await postsApi.get(id, true);
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) notFound();
     throw e;

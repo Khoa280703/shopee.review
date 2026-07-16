@@ -21,6 +21,10 @@ export function FollowButton({ username, initialFollowing, className }: Props) {
   const key = ['followStatus', username];
   const hasServerState = initialFollowing !== undefined;
 
+  // Never offer "follow yourself" — the backend rejects it and the optimistic
+  // toggle would just flicker. Hide the button on your own profile/posts.
+  const isSelf = user?.username === username;
+
   // With a server-provided value: seed the cache and treat it as fresh forever.
   // Without one: actually fetch (enabled only when logged in) — otherwise a
   // hardcoded initialData + staleTime:Infinity would stop the query from ever
@@ -56,6 +60,8 @@ export function FollowButton({ username, initialFollowing, className }: Props) {
     }
     mutate(!following);
   }
+
+  if (isSelf) return null;
 
   return (
     <button

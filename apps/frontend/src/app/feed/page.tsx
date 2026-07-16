@@ -12,6 +12,7 @@ export default function FeedPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [page, setPage] = useState<CursorPage<Post> | null>(null);
+  const [failed, setFailed] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
@@ -20,7 +21,16 @@ export default function FeedPage() {
       return;
     }
     if (user) {
-      feedApi.get().then(setPage).catch(() => setPage({ data: [], nextCursor: null }));
+      setFailed(false);
+      // Distinguish a real load failure from a genuinely empty feed — otherwise a
+      // backend error reads as "follow someone", which is misleading.
+      feedApi
+        .get()
+        .then(setPage)
+        .catch(() => {
+          setFailed(true);
+          setPage({ data: [], nextCursor: null });
+        });
     }
   }, [user, loading, router]);
 
@@ -47,7 +57,12 @@ export default function FeedPage() {
   return (
     <div className="mx-auto w-full max-w-[640px] px-0 py-md sm:px-4 lg:px-lg">
       <h1 className="mb-4 px-4 font-headline-md text-headline-md font-bold text-on-surface sm:px-0">Bảng tin</h1>
-      {page.data.length === 0 ? (
+      {failed ? (
+        <div className="rounded-xl border border-dashed border-error/40 py-16 text-center text-on-surface-variant">
+          <p className="mb-3">Không tải được bảng tin. Vui lòng thử lại.</p>
+          <Button variant="outline" onClick={() => location.reload()}>Thử lại</Button>
+        </div>
+      ) : page.data.length === 0 ? (
         <div className="rounded-xl border border-dashed border-outline-variant py-16 text-center text-on-surface-variant">
           Hãy theo dõi ai đó để xem bài review của họ tại đây.
         </div>

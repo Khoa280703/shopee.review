@@ -4,7 +4,8 @@ import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { buttonClasses } from '@/components/ui/button-classes';
 import { clickRedirectUrl, resolveAssetUrl } from '@/lib/constants';
-import { formatNumber, formatPrice, timeAgo } from '@/lib/format';
+import { formatNumber, formatPrice } from '@/lib/format';
+import { TimeAgo } from '@/components/ui/time-ago';
 import type { Post } from '@/types';
 
 export function PostCard({ post }: { post: Post }) {
@@ -50,7 +51,7 @@ export function PostCard({ post }: { post: Post }) {
           <Avatar src={post.user.avatarUrl} name={post.user.displayName} size={20} />
           <span className="truncate">@{post.user.username}</span>
           <span className="text-outline-variant">·</span>
-          <span>{timeAgo(post.createdAt)}</span>
+          <TimeAgo date={post.createdAt} />
         </Link>
 
         <Link
