@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
 import { ThemeProvider } from '@/components/providers/theme-provider';
+import { ToastProvider } from '@/components/providers/toast-provider';
 import { Header } from '@/components/layout/header';
 import { MobileNav } from '@/components/layout/mobile-nav';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
@@ -44,6 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className={`${inter.className} bg-background text-on-background`}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider>
+            <ToastProvider>
             <QueryProvider>
               <AuthProvider>
                 <SocketProvider>
@@ -58,6 +60,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </SocketProvider>
               </AuthProvider>
             </QueryProvider>
+            </ToastProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
       </body>

@@ -134,7 +134,10 @@ model Post {
   clickLogs     ClickLog[]
   notifications Notification[]
 
-  @@index([userId])
+  // Composite (user_id, id DESC): serves the personalized feed semi-join
+  // (posts of followed users, newest first) and profile post listings index-only.
+  // Also covers plain user_id filters via the leftmost prefix.
+  @@index([userId, id(sort: Desc)])
   @@index([categoryId])
   @@index([createdAt(sort: Desc)])
   // Keyset pagination for the sortable feeds (findAll sortBy=likeCount|clickCount

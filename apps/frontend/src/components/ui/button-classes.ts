@@ -14,6 +14,7 @@ export function buttonClasses(
   const { variant = 'primary', size = 'md', fullWidth, className } = opts;
   return cn(
     'inline-flex cursor-pointer items-center justify-center gap-sm rounded-full font-medium transition disabled:cursor-not-allowed disabled:opacity-50',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background',
     size === 'sm' && 'h-8 px-3 text-body-sm',
     size === 'md' && 'h-10 px-4 text-body-sm',
     size === 'lg' && 'h-11 px-5 text-body-sm font-semibold',

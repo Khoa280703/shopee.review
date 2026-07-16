@@ -12,6 +12,9 @@ const LOCK_TTL_MS = 30 * 60 * 1000;
 // are pruned (unread stay until seen), after 30d.
 const CLICK_LOG_RETENTION_DAYS = 90;
 const READ_NOTIFICATION_RETENTION_DAYS = 30;
+// Hard cap for ALL notifications (even unread): a user who abandons the app
+// would otherwise accumulate unread NEW_POST rows forever.
+const NOTIFICATION_MAX_AGE_DAYS = 90;
 // Match the JWT cookie lifetime (30d): a session older than that already has a
 // dead token, so the row is pure noise (and stale PII) — and it would otherwise
 // linger in the user's "active sessions" list forever.
@@ -67,11 +70,18 @@ export class RetentionService {
     const day = 24 * 60 * 60 * 1000;
     const clickCutoff = new Date(now - CLICK_LOG_RETENTION_DAYS * day);
     const notifCutoff = new Date(now - READ_NOTIFICATION_RETENTION_DAYS * day);
+    const notifMaxCutoff = new Date(now - NOTIFICATION_MAX_AGE_DAYS * day);
     const sessionCutoff = new Date(now - SESSION_RETENTION_DAYS * day);
 
     const clickLogs = await this.deleteClickLogsInBatches(clickCutoff);
+    // Read notifications after 30d, plus any notification (read or not) past 90d.
     const notifs = await this.prisma.notification.deleteMany({
-      where: { read: true, createdAt: { lt: notifCutoff } },
+      where: {
+        OR: [
+          { read: true, createdAt: { lt: notifCutoff } },
+          { createdAt: { lt: notifMaxCutoff } },
+        ],
+      },
     });
     const sessions = await this.prisma.session.deleteMany({
       where: { createdAt: { lt: sessionCutoff } },
