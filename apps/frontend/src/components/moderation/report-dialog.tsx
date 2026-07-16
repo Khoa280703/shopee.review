@@ -1,16 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { moderationApi, type ReportReason, type ReportTargetType } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 
-const REASONS: { value: ReportReason; label: string }[] = [
-  { value: 'SPAM', label: 'Spam' },
-  { value: 'SCAM', label: 'Lừa đảo' },
-  { value: 'OFFENSIVE', label: 'Nội dung phản cảm' },
-  { value: 'FAKE', label: 'Thông tin giả' },
-  { value: 'OTHER', label: 'Khác' },
-];
+const REASONS: ReportReason[] = ['SPAM', 'SCAM', 'OFFENSIVE', 'FAKE', 'OTHER'];
 
 interface Props {
   targetType: ReportTargetType;
@@ -19,6 +14,7 @@ interface Props {
 }
 
 export function ReportDialog({ targetType, targetId, onClose }: Props) {
+  const t = useTranslations('moderation');
   const [reason, setReason] = useState<ReportReason>('SPAM');
   const [detail, setDetail] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
@@ -45,23 +41,23 @@ export function ReportDialog({ targetType, targetId, onClose }: Props) {
       >
         {state === 'done' ? (
           <div className="space-y-4 text-center">
-            <p className="font-headline-md text-headline-md text-on-surface">Đã gửi báo cáo</p>
-            <p className="text-body-sm text-on-surface-variant">Cảm ơn bạn đã giúp giữ cộng đồng an toàn.</p>
-            <Button fullWidth onClick={onClose}>Đóng</Button>
+            <p className="font-headline-md text-headline-md text-on-surface">{t('report.done.title')}</p>
+            <p className="text-body-sm text-on-surface-variant">{t('report.done.message')}</p>
+            <Button fullWidth onClick={onClose}>{t('report.close')}</Button>
           </div>
         ) : (
           <div className="space-y-4">
-            <h2 className="font-headline-md text-headline-md text-on-surface">Báo cáo nội dung</h2>
+            <h2 className="font-headline-md text-headline-md text-on-surface">{t('report.title')}</h2>
             <div className="space-y-2">
               {REASONS.map((r) => (
-                <label key={r.value} className="flex items-center gap-2 text-body-md text-on-surface">
+                <label key={r} className="flex items-center gap-2 text-body-md text-on-surface">
                   <input
                     type="radio"
                     name="reason"
-                    checked={reason === r.value}
-                    onChange={() => setReason(r.value)}
+                    checked={reason === r}
+                    onChange={() => setReason(r)}
                   />
-                  {r.label}
+                  {t(`reasons.${r}`)}
                 </label>
               ))}
             </div>
@@ -70,18 +66,18 @@ export function ReportDialog({ targetType, targetId, onClose }: Props) {
               onChange={(e) => setDetail(e.target.value)}
               maxLength={500}
               rows={3}
-              placeholder="Mô tả thêm (tuỳ chọn)"
+              placeholder={t('report.detailPlaceholder')}
               className="w-full rounded-lg border border-outline-variant bg-surface-container p-2 text-body-sm text-on-surface"
             />
             {state === 'error' && (
               <p className="text-body-sm text-error">
-                Gửi báo cáo thất bại. Vui lòng thử lại.
+                {t('report.error')}
               </p>
             )}
             <div className="flex gap-2">
-              <Button variant="outline" fullWidth onClick={onClose}>Huỷ</Button>
+              <Button variant="outline" fullWidth onClick={onClose}>{t('report.cancel')}</Button>
               <Button fullWidth onClick={submit} disabled={state === 'sending'}>
-                {state === 'sending' ? 'Đang gửi...' : state === 'error' ? 'Thử lại' : 'Gửi báo cáo'}
+                {state === 'sending' ? t('report.sending') : state === 'error' ? t('report.retry') : t('report.submit')}
               </Button>
             </div>
           </div>

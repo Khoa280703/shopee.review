@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,9 @@ import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import type { AuthSession } from '@/types';
 
 export default function SettingsPage() {
+  const t = useTranslations('settings');
+  const common = useTranslations('common');
+  const locale = useLocale();
   const { user, loading, refresh, setUser } = useAuth();
   const router = useRouter();
   const [displayName, setDisplayName] = useState('');
@@ -74,9 +78,9 @@ export default function SettingsPage() {
     try {
       await usersApi.updateMe({ displayName, bio, avatarUrl: avatarUrl || undefined, affiliateId });
       await refresh();
-      setMessage('Đã lưu thay đổi.');
+      setMessage(t('saveSuccess'));
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Lưu thất bại');
+      setMessage(err instanceof Error ? err.message : t('saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -90,9 +94,9 @@ export default function SettingsPage() {
       await authApi.changePassword(currentPassword, newPassword);
       setCurrentPassword('');
       setNewPassword('');
-      setPwMessage('Đã đổi mật khẩu. Các phiên đăng nhập khác đã bị đăng xuất.');
+      setPwMessage(t('passwordChanged'));
     } catch (err) {
-      setPwMessage(err instanceof Error ? err.message : 'Đổi mật khẩu thất bại');
+      setPwMessage(err instanceof Error ? err.message : t('passwordChangeFailed'));
     } finally {
       setChangingPw(false);
     }
@@ -105,18 +109,18 @@ export default function SettingsPage() {
       setUser(null);
       router.replace('/');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Xóa tài khoản thất bại');
+      setMessage(err instanceof Error ? err.message : t('deleteAccountFailed'));
       setDeleting(false);
     }
   }
 
   if (loading || !user) {
-    return <div className="py-16 text-center text-on-surface-variant">Đang tải...</div>;
+    return <div className="py-16 text-center text-on-surface-variant">{common('loading')}</div>;
   }
 
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-lg">
-      <h1 className="mb-6 font-display-lg-mobile text-display-lg-mobile font-bold text-on-surface">Cài đặt</h1>
+      <h1 className="mb-6 font-display-lg-mobile text-display-lg-mobile font-bold text-on-surface">{t('title')}</h1>
 
       <div className="mb-6">
         <AppearanceSettings />
@@ -126,42 +130,42 @@ export default function SettingsPage() {
         <div className="flex items-center gap-4">
           <Avatar src={avatarUrl} name={displayName || user.username} size={64} />
           <label className={buttonClasses({ variant: 'outline', size: 'sm', className: 'cursor-pointer' })}>
-            Đổi ảnh đại diện
+            {t('changeAvatar')}
             <input type="file" accept="image/*" className="hidden" onChange={onAvatar} />
           </label>
         </div>
 
         <div>
-          <label className="mb-1 block text-body-sm font-medium text-on-surface">Tên hiển thị</label>
+          <label className="mb-1 block text-body-sm font-medium text-on-surface">{t('displayName')}</label>
           <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         </div>
 
         <div>
-          <label className="mb-1 block text-body-sm font-medium text-on-surface">Giới thiệu</label>
+          <label className="mb-1 block text-body-sm font-medium text-on-surface">{t('bio')}</label>
           <Textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={500} />
         </div>
 
         <div>
-          <label className="mb-1 block text-body-sm font-medium text-on-surface">Affiliate ID Shopee</label>
+          <label className="mb-1 block text-body-sm font-medium text-on-surface">{t('affiliateId')}</label>
           <Input
             value={affiliateId}
             onChange={(e) => setAffiliateId(e.target.value)}
-            placeholder="Affiliate ID của bạn"
+            placeholder={t('affiliateIdPlaceholder')}
           />
-          <p className="mt-1 text-label-caps text-on-surface-variant">Đăng ký tại affiliate.shopee.vn</p>
+          <p className="mt-1 text-label-caps text-on-surface-variant">{t('affiliateRegisterHint')}</p>
         </div>
 
         {message && <p className="text-body-sm text-tertiary">{message}</p>}
 
         <Button type="submit" fullWidth size="lg" disabled={saving}>
-          {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+          {saving ? t('saving') : t('saveChanges')}
         </Button>
       </form>
 
       <form onSubmit={changePassword} className="mt-10 space-y-4 rounded-xl border border-outline-variant p-4">
-        <h2 className="font-title-md text-title-md font-semibold text-on-surface">Đổi mật khẩu</h2>
+        <h2 className="font-title-md text-title-md font-semibold text-on-surface">{t('changePassword')}</h2>
         <div>
-          <label className="mb-1 block text-body-sm font-medium text-on-surface">Mật khẩu hiện tại</label>
+          <label className="mb-1 block text-body-sm font-medium text-on-surface">{t('currentPassword')}</label>
           <Input
             type="password"
             value={currentPassword}
@@ -170,7 +174,7 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-body-sm font-medium text-on-surface">Mật khẩu mới</label>
+          <label className="mb-1 block text-body-sm font-medium text-on-surface">{t('newPassword')}</label>
           <Input
             type="password"
             value={newPassword}
@@ -181,14 +185,14 @@ export default function SettingsPage() {
         </div>
         {pwMessage && <p className="text-body-sm text-tertiary">{pwMessage}</p>}
         <Button type="submit" size="lg" disabled={changingPw || !currentPassword || newPassword.length < 8}>
-          {changingPw ? 'Đang đổi...' : 'Đổi mật khẩu'}
+          {changingPw ? t('changingPassword') : t('changePassword')}
         </Button>
       </form>
 
       <div className="mt-10 rounded-xl border border-outline-variant p-4">
-        <h2 className="font-title-md text-title-md font-semibold text-on-surface">Người dùng đã chặn</h2>
+        <h2 className="font-title-md text-title-md font-semibold text-on-surface">{t('blockedUsers')}</h2>
         {blocked.length === 0 ? (
-          <p className="mt-2 text-body-sm text-on-surface-variant">Bạn chưa chặn ai.</p>
+          <p className="mt-2 text-body-sm text-on-surface-variant">{t('noBlockedUsers')}</p>
         ) : (
           <ul className="mt-3 space-y-2">
             {blocked.map((b) => (
@@ -200,7 +204,7 @@ export default function SettingsPage() {
                   onClick={() => void unblock(b.username)}
                   className="rounded-full border border-outline-variant px-3 py-1 text-body-sm text-on-surface hover:bg-surface-container"
                 >
-                  Bỏ chặn
+                  {t('unblock')}
                 </button>
               </li>
             ))}
@@ -210,27 +214,27 @@ export default function SettingsPage() {
 
       <div className="mt-10 rounded-xl border border-outline-variant p-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-title-md text-title-md font-semibold text-on-surface">Phiên đăng nhập</h2>
+          <h2 className="font-title-md text-title-md font-semibold text-on-surface">{t('sessions')}</h2>
           {sessions.filter((s) => !s.current).length > 0 && (
             <button
               onClick={() => void revokeOtherSessions()}
               className="rounded-full border border-outline-variant px-3 py-1 text-body-sm text-on-surface hover:bg-surface-container"
             >
-              Đăng xuất thiết bị khác
+              {t('logoutOtherDevices')}
             </button>
           )}
         </div>
         {sessions.length === 0 ? (
-          <p className="mt-2 text-body-sm text-on-surface-variant">Không có phiên nào.</p>
+          <p className="mt-2 text-body-sm text-on-surface-variant">{t('noSessions')}</p>
         ) : (
           <ul className="mt-3 space-y-2">
             {sessions.map((s) => (
               <li key={s.id} className="flex items-center justify-between gap-3">
                 <span className="min-w-0 text-body-sm text-on-surface">
-                  <span className="block truncate">{s.userAgent ?? 'Thiết bị không rõ'}</span>
+                  <span className="block truncate">{s.userAgent ?? t('unknownDevice')}</span>
                   <span className="text-on-surface-variant">
-                    {s.ip ?? 'IP ẩn'} · {new Date(s.createdAt).toLocaleString('vi-VN')}
-                    {s.current && ' · thiết bị này'}
+                    {s.ip ?? t('hiddenIp')} · {new Date(s.createdAt).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US')}
+                    {s.current && ` · ${t('thisDevice')}`}
                   </span>
                 </span>
                 {!s.current && (
@@ -238,7 +242,7 @@ export default function SettingsPage() {
                     onClick={() => void revokeSession(s.id)}
                     className="shrink-0 rounded-full border border-outline-variant px-3 py-1 text-body-sm text-on-surface hover:bg-surface-container"
                   >
-                    Đăng xuất
+                    {t('logoutSession')}
                   </button>
                 )}
               </li>
@@ -248,9 +252,9 @@ export default function SettingsPage() {
       </div>
 
       <div className="mt-10 rounded-xl border border-error/40 bg-error/5 p-4">
-        <h2 className="font-title-md text-title-md font-semibold text-error">Vùng nguy hiểm</h2>
+        <h2 className="font-title-md text-title-md font-semibold text-error">{t('dangerZone')}</h2>
         <p className="mt-1 text-body-sm text-on-surface-variant">
-          Xóa tài khoản sẽ gỡ bỏ vĩnh viễn toàn bộ bài viết, bình luận, lượt thích và người theo dõi của bạn. Hành động này không thể hoàn tác.
+          {t('deleteAccountWarning')}
         </p>
 
         {confirmDelete ? (
@@ -261,7 +265,7 @@ export default function SettingsPage() {
               onClick={() => setConfirmDelete(false)}
               disabled={deleting}
             >
-              Hủy
+              {common('cancel')}
             </Button>
             <button
               type="button"
@@ -269,7 +273,7 @@ export default function SettingsPage() {
               disabled={deleting}
               className="rounded-lg bg-error px-4 py-2 text-body-md font-semibold text-on-error disabled:opacity-60"
             >
-              {deleting ? 'Đang xóa...' : 'Tôi chắc chắn, xóa tài khoản'}
+              {deleting ? t('deletingAccount') : t('confirmDeleteAccount')}
             </button>
           </div>
         ) : (
@@ -278,7 +282,7 @@ export default function SettingsPage() {
             onClick={() => setConfirmDelete(true)}
             className="mt-4 rounded-lg border border-error px-4 py-2 text-body-md font-semibold text-error"
           >
-            Xóa tài khoản
+            {t('deleteAccount')}
           </button>
         )}
       </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
+import { getTranslations } from 'next-intl/server';
 import { usersApi } from '@/lib/api';
 import { ApiError } from '@/lib/api';
 import { LoadMorePosts } from '@/components/post/load-more-posts';
@@ -14,11 +15,12 @@ export async function generateMetadata({
   params: Promise<{ username: string }>;
 }): Promise<Metadata> {
   const { username } = await params;
+  const t = await getTranslations('profile');
   try {
     const profile = await usersApi.profile(username, true);
     return {
       title: `${profile.displayName} (@${profile.username})`,
-      description: profile.bio ?? `Các bài review của ${profile.displayName} trên shopee.review`,
+      description: profile.bio ?? t('metaDescription', { displayName: profile.displayName }),
     };
   } catch {
     return { title: username };
@@ -35,6 +37,7 @@ export default async function ProfilePage({
   const { username } = await params;
   const { tab } = await searchParams;
   const activeTab: ProfileTab = tab === 'products' ? 'products' : 'posts';
+  const t = await getTranslations('profile');
 
   let profile: UserProfile;
   try {
@@ -74,7 +77,7 @@ export default async function ProfilePage({
         {activeTab === 'products' && (
           initial.data.length === 0 ? (
             <div className="py-16 text-center font-body-md text-body-md text-on-surface-variant">
-              Chưa có sản phẩm nào được review.
+              {t('noProducts')}
             </div>
           ) : (
             <LoadMorePosts

@@ -2,12 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { socialApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { PostFeedCard } from '@/components/post/post-feed-card';
 import type { Post } from '@/types';
 
 export default function SavedPage() {
+  const t = useTranslations('saved');
+  const nav = useTranslations('nav');
+  const common = useTranslations('common');
   const { user, loading } = useAuth();
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
@@ -46,21 +50,21 @@ export default function SavedPage() {
   }, [cursor, loadingMore]);
 
   if (loading || !user) {
-    return <div className="py-16 text-center text-on-surface-variant">Đang tải...</div>;
+    return <div className="py-16 text-center text-on-surface-variant">{common('loading')}</div>;
   }
 
   return (
     <div className="mx-auto w-full max-w-[640px] px-0 py-md sm:px-4">
       <h1 className="mb-md px-4 font-display-lg-mobile text-display-lg-mobile font-bold text-on-surface sm:px-0">
-        Đã lưu
+        {nav('saved')}
       </h1>
       {loaded && failed ? (
         <p className="mx-4 rounded-xl border border-dashed border-error/40 py-16 text-center text-on-surface-variant sm:mx-0">
-          Không tải được danh sách đã lưu. Vui lòng thử lại.
+          {t('loadFailed')}
         </p>
       ) : loaded && posts.length === 0 ? (
         <p className="mx-4 rounded-xl border border-dashed border-outline-variant py-16 text-center text-on-surface-variant sm:mx-0">
-          Bạn chưa lưu bài viết nào.
+          {t('empty')}
         </p>
       ) : (
         <div className="flex flex-col gap-md">
@@ -73,7 +77,7 @@ export default function SavedPage() {
               disabled={loadingMore}
               className="mx-4 rounded-full border border-outline-variant py-sm font-label-caps text-label-caps text-on-surface hover:bg-surface-container disabled:opacity-60 sm:mx-0"
             >
-              {loadingMore ? 'Đang tải...' : 'Xem thêm'}
+              {loadingMore ? common('loading') : common('more')}
             </button>
           )}
         </div>

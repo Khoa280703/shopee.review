@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ function CommentItem({
   currentUserId?: number;
   isReply?: boolean;
 }) {
+  const t = useTranslations('social');
   const [replying, setReplying] = useState(false);
   const [text, setText] = useState('');
   const [loadingMore, setLoadingMore] = useState(false);
@@ -70,12 +72,12 @@ function CommentItem({
           <div className="mt-1 flex gap-lg text-on-surface-variant">
             {!isReply && (
               <button onClick={() => setReplying((v) => !v)} className="flex items-center gap-xs text-label-caps hover:text-tertiary">
-                <Icon name="chat_bubble" className="text-[14px]" /> Trả lời
+                <Icon name="chat_bubble" className="text-[14px]" /> {t('comments.reply')}
               </button>
             )}
             {currentUserId === comment.userId && (
               <button onClick={() => onDelete(comment.id)} className="flex items-center gap-xs text-label-caps hover:text-error">
-                <Icon name="delete" className="text-[14px]" /> Xóa
+                <Icon name="delete" className="text-[14px]" /> {t('comments.delete')}
               </button>
             )}
           </div>
@@ -86,11 +88,11 @@ function CommentItem({
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && submitReply()}
-                placeholder="Viết trả lời..."
+                placeholder={t('comments.replyPlaceholder')}
                 className="h-9 flex-1 rounded-full px-3"
               />
               <Button size="sm" onClick={submitReply}>
-                Gửi
+                {t('comments.send')}
               </Button>
             </div>
           )}
@@ -114,7 +116,9 @@ function CommentItem({
               className="mt-3 flex items-center gap-xs text-label-caps text-tertiary hover:underline disabled:opacity-60"
             >
               <Icon name="subdirectory_arrow_right" className="text-[14px]" />
-              {loadingMore ? 'Đang tải...' : `Xem thêm ${remainingReplies} trả lời`}
+              {loadingMore
+                ? t('comments.loadingMore')
+                : t('comments.showMoreReplies', { count: remainingReplies })}
             </button>
           )}
         </div>
@@ -124,6 +128,7 @@ function CommentItem({
 }
 
 export function CommentsSection({ postId }: { postId: number }) {
+  const t = useTranslations('social');
   const { user } = useAuth();
   const router = useRouter();
   const [comments, setComments] = useState<Comment[]>([]);
@@ -153,7 +158,7 @@ export function CommentsSection({ postId }: { postId: number }) {
       setComments((prev) => [{ ...created, replies: [] }, ...prev]);
       setText('');
     } catch {
-      setError('Không gửi được bình luận. Vui lòng thử lại.');
+      setError(t('comments.errorAdd'));
     }
   }
 
@@ -177,7 +182,7 @@ export function CommentsSection({ postId }: { postId: number }) {
         ),
       );
     } catch {
-      setError('Không gửi được trả lời. Vui lòng thử lại.');
+      setError(t('comments.errorReply'));
     }
   }
 
@@ -207,31 +212,31 @@ export function CommentsSection({ postId }: { postId: number }) {
           .map((c) => ({ ...c, replies: c.replies?.filter((r) => r.id !== id) })),
       );
     } catch {
-      setError('Không xoá được bình luận. Vui lòng thử lại.');
+      setError(t('comments.errorDelete'));
     }
   }
 
   return (
     <section id="comments" className="space-y-4">
       <h2 className="border-b border-outline-variant pb-sm font-headline-md text-headline-md text-on-surface">
-        Bình luận
+        {t('comments.title')}
       </h2>
       <div className="flex gap-2">
         <Input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && addTopComment()}
-          placeholder={user ? 'Viết bình luận...' : 'Đăng nhập để bình luận'}
+          placeholder={user ? t('comments.placeholder') : t('comments.loginToComment')}
           className="flex-1 rounded-full"
         />
-        <Button onClick={addTopComment}>Gửi</Button>
+        <Button onClick={addTopComment}>{t('comments.send')}</Button>
       </div>
       {error && <p className="text-body-sm text-error">{error}</p>}
 
       {loading ? (
-        <p className="text-body-sm text-on-surface-variant">Đang tải bình luận...</p>
+        <p className="text-body-sm text-on-surface-variant">{t('comments.loading')}</p>
       ) : comments.length === 0 ? (
-        <p className="text-body-sm text-on-surface-variant">Chưa có bình luận nào. Hãy là người đầu tiên!</p>
+        <p className="text-body-sm text-on-surface-variant">{t('comments.empty')}</p>
       ) : (
         <div className="space-y-5">
           {comments.map((comment) => (

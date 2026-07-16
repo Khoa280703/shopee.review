@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { categoriesApi, postsApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ import { ImageUploader } from './image-uploader';
 import { ShopeeUrlInput } from './shopee-url-input';
 
 export function PostForm() {
+  const t = useTranslations('create');
   const { user } = useAuth();
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -49,11 +51,11 @@ export function PostForm() {
     setError(null);
 
     if (user && !user.emailVerified) {
-      setError('Vui lòng xác minh email trước khi đăng bài.');
+      setError(t('errors.emailNotVerified'));
       return;
     }
     if (!title.trim() || !productUrl.trim() || !affiliateUrl.trim() || images.length === 0) {
-      setError('Vui lòng nhập tiêu đề, link sản phẩm, link affiliate và ít nhất 1 ảnh.');
+      setError(t('errors.missingFields'));
       return;
     }
 
@@ -70,7 +72,7 @@ export function PostForm() {
       });
       router.push(`/${post.user.username}/${post.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Đăng bài thất bại');
+      setError(e instanceof Error ? e.message : t('errors.createFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -80,21 +82,21 @@ export function PostForm() {
     <form onSubmit={submit} className="space-y-6">
       {user && !user.emailVerified && (
         <div className="rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-body-sm text-warning-on">
-          Bạn cần xác minh email trước khi đăng bài. Kiểm tra hộp thư của bạn.
+          {t('emailVerifyNotice')}
         </div>
       )}
 
       <div>
-        <label className="mb-2 block text-body-sm font-medium">🔗 Link sản phẩm Shopee</label>
+        <label className="mb-2 block text-body-sm font-medium">{t('productUrlLabel')}</label>
         <ShopeeUrlInput value={productUrl} onChange={setProductUrl} onScraped={applyScraped} />
       </div>
 
       {productMeta && (
         <div className="rounded-lg border border-outline-variant bg-surface-container-low p-3 text-body-sm text-on-surface-variant">
-          {productMeta.shopName && <p>Shop: {productMeta.shopName}</p>}
+          {productMeta.shopName && <p>{t('shopLabel', { shopName: productMeta.shopName })}</p>}
           {productMeta.salePrice != null && (
             <p>
-              Giá: {productMeta.salePrice?.toLocaleString('vi-VN')}đ
+              {t('priceLabel', { price: productMeta.salePrice?.toLocaleString('vi-VN') })}
               {productMeta.discountPercent ? ` (-${productMeta.discountPercent}%)` : ''}
             </p>
           )}
@@ -102,51 +104,49 @@ export function PostForm() {
       )}
 
       <div>
-        <label className="mb-2 block text-body-sm font-medium">📸 Ảnh sản phẩm</label>
+        <label className="mb-2 block text-body-sm font-medium">{t('imagesLabel')}</label>
         <ImageUploader images={images} onChange={setImages} />
       </div>
 
       <div>
-        <label className="mb-2 block text-body-sm font-medium">📝 Tiêu đề bài review</label>
+        <label className="mb-2 block text-body-sm font-medium">{t('titleLabel')}</label>
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={200}
-          placeholder="Ví dụ: Đánh giá tai nghe XYZ sau 1 tháng dùng"
+          placeholder={t('titlePlaceholder')}
         />
       </div>
 
       <div>
-        <label className="mb-2 block text-body-sm font-medium">💭 Nội dung review</label>
+        <label className="mb-2 block text-body-sm font-medium">{t('contentLabel')}</label>
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={6}
           maxLength={5000}
-          placeholder="Chia sẻ trải nghiệm thật của bạn..."
+          placeholder={t('contentPlaceholder')}
         />
       </div>
 
       <div>
-        <label className="mb-2 block text-body-sm font-medium">🏷️ Link affiliate của bạn</label>
+        <label className="mb-2 block text-body-sm font-medium">{t('affiliateUrlLabel')}</label>
         <Input
           value={affiliateUrl}
           onChange={(e) => setAffiliateUrl(e.target.value)}
-          placeholder="Dán link affiliate Shopee của bạn"
+          placeholder={t('affiliateUrlPlaceholder')}
         />
-        <p className="mt-1 text-label-caps text-on-surface-variant">
-          Đăng ký Shopee Affiliate tại affiliate.shopee.vn để lấy link kiếm hoa hồng.
-        </p>
+        <p className="mt-1 text-label-caps text-on-surface-variant">{t('affiliateHint')}</p>
       </div>
 
       <div>
-        <label className="mb-2 block text-body-sm font-medium">📁 Danh mục</label>
+        <label className="mb-2 block text-body-sm font-medium">{t('categoryLabel')}</label>
         <select
           value={categoryId ?? ''}
           onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
           className="h-11 w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 text-body-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
         >
-          <option value="">-- Chọn danh mục --</option>
+          <option value="">{t('categoryPlaceholder')}</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.icon} {c.name}
@@ -159,10 +159,10 @@ export function PostForm() {
 
       <div className="flex gap-3">
         <Button variant="outline" size="lg" type="button" onClick={() => router.back()}>
-          Hủy
+          {t('cancel')}
         </Button>
         <Button type="submit" size="lg" disabled={submitting} className="flex-1">
-          {submitting ? 'Đang đăng...' : 'Đăng bài'}
+          {submitting ? t('publishing') : t('publish')}
         </Button>
       </div>
     </form>

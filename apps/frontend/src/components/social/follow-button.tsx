@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { socialApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function FollowButton({ username, initialFollowing, className }: Props) {
+  const t = useTranslations('social');
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -75,7 +77,7 @@ export function FollowButton({ username, initialFollowing, className }: Props) {
         className,
       )}
     >
-      {following ? 'Đang theo dõi' : 'Theo dõi'}
+      {following ? t('follow.following') : t('follow.follow')}
     </button>
   );
 }

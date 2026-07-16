@@ -2,13 +2,15 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/cn';
 import { resolveAssetUrl } from '@/lib/constants';
 
 export function ImageCarousel({ images, alt }: { images: string[]; alt: string }) {
+  const t = useTranslations('post');
   const [active, setActive] = useState(0);
   if (images.length === 0) {
-    return <div className="flex aspect-square items-center justify-center rounded-xl bg-surface-container text-on-surface-variant">Không có ảnh</div>;
+    return <div className="flex aspect-square items-center justify-center rounded-xl bg-surface-container text-on-surface-variant">{t('noImage')}</div>;
   }
 
   return (

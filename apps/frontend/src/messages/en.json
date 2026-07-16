@@ -1,40 +1,330 @@
 {
-  "nav": {
-    "home": "Home",
-    "explore": "Explore",
-    "forYou": "For you",
-    "following": "Following",
-    "feed": "Feed",
-    "notifications": "Notifications",
-    "saved": "Saved",
-    "profile": "Profile",
-    "dashboard": "Analytics",
-    "admin": "Admin",
-    "settings": "Settings",
-    "search": "Explore",
-    "post": "Post",
-    "login": "Log in",
-    "logout": "Log out"
+  "admin": {
+    "banUser": "Ban account",
+    "deleteComment": "Delete comment",
+    "deletePost": "Delete post",
+    "dismiss": "Dismiss",
+    "noReports": "No reports.",
+    "reportedBy": "by @{username}",
+    "resolve": "Resolved",
+    "title": "Admin · Pending reports"
+  },
+  "auth": {
+    "callback": {
+      "loading": "Logging in..."
+    },
+    "common": {
+      "backToLogin": "Back to login",
+      "loadingEllipsis": "Loading...",
+      "or": "or"
+    },
+    "forgot": {
+      "description": "Enter your email and we'll send you a password reset link.",
+      "emailPlaceholder": "Email",
+      "sentMessage": "If this email exists in our system, we've sent a password reset link. Please check your inbox.",
+      "submit": "Send reset link",
+      "submitLoading": "Sending...",
+      "title": "Forgot password"
+    },
+    "login": {
+      "emailPlaceholder": "Email",
+      "error": "Login failed",
+      "facebook": "Log in with Facebook",
+      "forgotPassword": "Forgot password?",
+      "google": "Log in with Google",
+      "noAccount": "Don't have an account?",
+      "passwordPlaceholder": "Password",
+      "register": "Sign up",
+      "submit": "Log in",
+      "submitLoading": "Logging in...",
+      "title": "Log in"
+    },
+    "register": {
+      "displayNamePlaceholder": "Display name",
+      "emailPlaceholder": "Email",
+      "error": "Registration failed",
+      "facebook": "Sign up with Facebook",
+      "google": "Sign up with Google",
+      "haveAccount": "Already have an account?",
+      "login": "Log in",
+      "passwordPlaceholder": "Password (at least 8 characters)",
+      "submit": "Sign up",
+      "submitLoading": "Creating account...",
+      "title": "Sign up",
+      "usernamePlaceholder": "Username (a-z, 0-9, _)",
+      "verifyNotice": "After signing up, check your email to verify your account before posting."
+    },
+    "reset": {
+      "confirmPasswordPlaceholder": "Confirm password",
+      "error": "Password reset failed",
+      "invalidToken": "Invalid link. Please request a new password reset.",
+      "mismatchError": "Password confirmation doesn't match",
+      "newPasswordPlaceholder": "New password",
+      "submit": "Reset password",
+      "submitLoading": "Saving...",
+      "successMessage": "Password reset successfully! Redirecting to the login page...",
+      "title": "Reset password"
+    },
+    "verify": {
+      "errorMessage": "The link is invalid or has expired.",
+      "errorTitle": "Verification failed",
+      "homeButton": "Go to homepage",
+      "postNow": "Post now",
+      "resendButton": "Resend verification email",
+      "resentMessage": "Verification email resent (if the account is unverified). Check your inbox.",
+      "successMessage": "You can now post reviews.",
+      "successTitle": "Verification successful!",
+      "verifying": "Verifying email..."
+    }
   },
   "common": {
-    "save": "Save",
+    "all": "All",
     "cancel": "Cancel",
     "close": "Close",
-    "retry": "Retry",
+    "follow": "Follow",
+    "likesCount": "{count} likes",
     "loading": "Loading...",
-    "submit": "Send",
     "more": "Show more",
-    "search": "Search"
+    "privacy": "Privacy",
+    "retry": "Retry",
+    "save": "Save",
+    "search": "Search",
+    "submit": "Send",
+    "suggestedFollows": "Suggested for you",
+    "terms": "Terms",
+    "trendingProducts": "Trending products"
+  },
+  "create": {
+    "addImage": "Add image",
+    "addLink": "Add link",
+    "addProduct": "Add product",
+    "affiliateHint": "Sign up for Shopee Affiliate at affiliate.shopee.vn to get a commission link.",
+    "affiliateUrlLabel": "🏷️ Your affiliate link",
+    "affiliateUrlPlaceholder": "Paste your Shopee affiliate link",
+    "cancel": "Cancel",
+    "categoryLabel": "📁 Category",
+    "categoryPlaceholder": "-- Select category --",
+    "contentLabel": "💭 Review content",
+    "contentPlaceholder": "Share your honest experience...",
+    "emailVerifyNotice": "You need to verify your email before posting. Check your inbox.",
+    "errors": {
+      "createFailed": "Failed to create post",
+      "emailNotVerified": "Please verify your email before posting.",
+      "missingFields": "Please enter a title, product link, affiliate link, and at least 1 image.",
+      "scrapeFailed": "Could not fetch product info",
+      "uploadFailed": "Upload failed"
+    },
+    "imagesLabel": "📸 Product images",
+    "loading": "Loading...",
+    "priceLabel": "Price: {price}đ",
+    "productUrlLabel": "🔗 Shopee product link",
+    "promptPlaceholder": "What product are you reviewing today?",
+    "publish": "Post",
+    "publishing": "Posting...",
+    "shopLabel": "Shop: {shopName}",
+    "title": "Create a review",
+    "titleLabel": "📝 Review title",
+    "titlePlaceholder": "e.g. XYZ headphones review after 1 month",
+    "uploading": "Uploading...",
+    "urlPlaceholder": "Paste Shopee product link..."
+  },
+  "dashboard": {
+    "clicks": "Clicks",
+    "clicksLast7Days": "Clicks in the last 7 days",
+    "colClicks": "Clicks",
+    "colComments": "Comments",
+    "colLikes": "Likes",
+    "colTitle": "Title",
+    "followers": "Followers",
+    "noClickData": "No click data yet.",
+    "noPosts": "No posts yet.",
+    "postStats": "Post stats",
+    "posts": "Posts"
+  },
+  "errors": {
+    "backHome": "Back to home",
+    "feedLoadFailed": "Couldn't load the feed. Please try again later.",
+    "genericTitle": "Something went wrong",
+    "notFoundMessage": "The page you're looking for doesn't exist.",
+    "tryAgainLater": "Please try again later."
+  },
+  "moderation": {
+    "block": "Block",
+    "reasons": {
+      "FAKE": "False information",
+      "OFFENSIVE": "Offensive content",
+      "OTHER": "Other",
+      "SCAM": "Scam",
+      "SPAM": "Spam"
+    },
+    "report": {
+      "cancel": "Cancel",
+      "close": "Close",
+      "detailPlaceholder": "Add details (optional)",
+      "done": {
+        "message": "Thanks for helping keep the community safe.",
+        "title": "Report sent"
+      },
+      "error": "Failed to send report. Please try again.",
+      "retry": "Retry",
+      "sending": "Sending...",
+      "submit": "Submit report",
+      "title": "Report content"
+    },
+    "unblock": "Unblock"
+  },
+  "nav": {
+    "admin": "Admin",
+    "dashboard": "Analytics",
+    "explore": "Explore",
+    "feed": "Feed",
+    "following": "Following",
+    "forYou": "For you",
+    "home": "Home",
+    "login": "Log in",
+    "logout": "Log out",
+    "notifications": "Notifications",
+    "post": "Post",
+    "profile": "Profile",
+    "saved": "Saved",
+    "search": "Explore",
+    "settings": "Settings"
+  },
+  "notifications": {
+    "action": {
+      "COMMENT": "commented on your review",
+      "FOLLOW": "started following you",
+      "LIKE": "liked your review",
+      "MENTION": "mentioned you",
+      "NEW_POST": "just posted a new review"
+    },
+    "empty": "No notifications yet.",
+    "loadingMore": "Loading...",
+    "showMore": "Show more",
+    "tabs": {
+      "COMMENT": "Comments",
+      "FOLLOW": "Follows",
+      "LIKE": "Likes",
+      "all": "All"
+    },
+    "tips": {
+      "body": "Post quality reviews and engage with the community to earn more followers and affiliate income.",
+      "title": "Tips"
+    },
+    "title": "Notifications"
+  },
+  "post": {
+    "buyNow": "Buy now",
+    "defaultTitle": "Review post",
+    "emptyList": "No reviews yet.",
+    "noImage": "No image",
+    "relatedTitle": "Related products",
+    "report": "Report",
+    "sold": "{count} sold"
+  },
+  "profile": {
+    "edit": "Edit",
+    "followers": "Followers",
+    "following": "Following",
+    "metaDescription": "Reviews posted by {displayName} on shopee.review",
+    "noProducts": "No products reviewed yet.",
+    "reviews": "Reviews",
+    "statFollowers": "Followers",
+    "statFollowing": "Following",
+    "statPosts": "Posts",
+    "tabPosts": "Posts",
+    "tabProducts": "Products"
+  },
+  "saved": {
+    "empty": "You haven't saved any posts yet.",
+    "loadFailed": "Couldn't load saved posts. Please try again."
+  },
+  "search": {
+    "noUsers": "No users found.",
+    "placeholder": "Search reviews, users...",
+    "postsTab": "Posts ({count})",
+    "searchFailed": "Search failed. Please try again.",
+    "searching": "Searching...",
+    "usersTab": "Users ({count})"
   },
   "settings": {
-    "title": "Settings",
+    "affiliateId": "Shopee Affiliate ID",
+    "affiliateIdPlaceholder": "Your affiliate ID",
+    "affiliateRegisterHint": "Register at affiliate.shopee.vn",
     "appearance": "Appearance",
-    "theme": "Theme",
-    "themeLight": "Light",
-    "themeDark": "Dark",
-    "themeSystem": "System",
+    "bio": "Bio",
+    "blockedUsers": "Blocked users",
+    "changeAvatar": "Change avatar",
+    "changePassword": "Change password",
+    "changingPassword": "Changing...",
+    "confirmDeleteAccount": "I'm sure, delete my account",
+    "currentPassword": "Current password",
+    "dangerZone": "Danger zone",
+    "deleteAccount": "Delete account",
+    "deleteAccountFailed": "Account deletion failed",
+    "deleteAccountWarning": "Deleting your account permanently removes all your posts, comments, likes, and followers. This action cannot be undone.",
+    "deletingAccount": "Deleting...",
+    "displayName": "Display name",
+    "hiddenIp": "Hidden IP",
     "language": "Language",
+    "languageEn": "English",
     "languageVi": "Tiếng Việt",
-    "languageEn": "English"
+    "logoutOtherDevices": "Log out other devices",
+    "logoutSession": "Log out",
+    "newPassword": "New password",
+    "noBlockedUsers": "You haven't blocked anyone.",
+    "noSessions": "No sessions.",
+    "passwordChangeFailed": "Password change failed",
+    "passwordChanged": "Password changed. Other sessions were logged out.",
+    "saveChanges": "Save changes",
+    "saveFailed": "Save failed",
+    "saveSuccess": "Changes saved.",
+    "saving": "Saving...",
+    "sessions": "Sessions",
+    "theme": "Theme",
+    "themeDark": "Dark",
+    "themeLight": "Light",
+    "themeSystem": "System",
+    "thisDevice": "this device",
+    "title": "Settings",
+    "unblock": "Unblock",
+    "unknownDevice": "Unknown device"
+  },
+  "social": {
+    "bookmark": {
+      "ariaLabel": "Save post"
+    },
+    "comments": {
+      "delete": "Delete",
+      "empty": "No comments yet. Be the first!",
+      "errorAdd": "Couldn't post comment. Please try again.",
+      "errorDelete": "Couldn't delete comment. Please try again.",
+      "errorReply": "Couldn't post reply. Please try again.",
+      "loading": "Loading comments...",
+      "loadingMore": "Loading...",
+      "loginToComment": "Log in to comment",
+      "placeholder": "Write a comment...",
+      "reply": "Reply",
+      "replyPlaceholder": "Write a reply...",
+      "send": "Send",
+      "showMoreReplies": "Show {count} more replies",
+      "title": "Comments"
+    },
+    "follow": {
+      "follow": "Follow",
+      "following": "Following"
+    },
+    "reactions": {
+      "ANGRY": "Angry",
+      "HAHA": "Haha",
+      "LIKE": "Like",
+      "LOVE": "Love",
+      "SAD": "Sad",
+      "WOW": "Wow",
+      "ariaLabel": "React"
+    },
+    "share": {
+      "ariaLabel": "Share"
+    }
   }
 }

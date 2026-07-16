@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { ApiError, postsApi } from '@/lib/api';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
@@ -12,7 +13,8 @@ import { ShareButton } from '@/components/social/share-button';
 import { FollowButton } from '@/components/social/follow-button';
 import { ReportButton } from '@/components/moderation/report-button';
 import { clickRedirectUrl, resolveAssetUrl, SITE_NAME } from '@/lib/constants';
-import { formatNumber, formatPrice, timeAgo } from '@/lib/format';
+import { formatNumber, formatPrice } from '@/lib/format';
+import { TimeAgo } from '@/components/ui/time-ago';
 import type { Post } from '@/types';
 
 export async function generateMetadata({
@@ -21,8 +23,9 @@ export async function generateMetadata({
   params: Promise<{ username: string; postId: string }>;
 }): Promise<Metadata> {
   const { username, postId } = await params;
+  const t = await getTranslations('post');
   const id = Number(postId);
-  if (!Number.isInteger(id) || id <= 0) return { title: 'Bài review' };
+  if (!Number.isInteger(id) || id <= 0) return { title: t('defaultTitle') };
   try {
     const post = await postsApi.get(id, true);
     const description = post.content?.slice(0, 160) ?? post.title;
@@ -51,7 +54,7 @@ export async function generateMetadata({
       },
     };
   } catch {
-    return { title: 'Bài review' };
+    return { title: t('defaultTitle') };
   }
 }
 
@@ -61,6 +64,7 @@ export default async function PostDetailPage({
   params: Promise<{ username: string; postId: string }>;
 }) {
   const { postId } = await params;
+  const t = await getTranslations('post');
 
   // A non-numeric id (junk URL, crawler) would reach the backend as NaN and 400,
   // surfacing as a 500 error page. Treat it as not-found instead.
@@ -104,7 +108,7 @@ export default async function PostDetailPage({
               <div>
                 <h2 className="font-headline-md text-headline-md text-on-surface">{post.user.displayName}</h2>
                 <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  @{post.user.username} • {timeAgo(post.createdAt)}
+                  @{post.user.username} • <TimeAgo date={post.createdAt} />
                 </p>
               </div>
             </Link>
@@ -181,7 +185,7 @@ export default async function PostDetailPage({
               {(meta.shopName || meta.soldCount) && (
                 <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
                   {meta.shopName ? meta.shopName : ''}
-                  {meta.soldCount ? ` • Đã bán ${formatNumber(meta.soldCount)}` : ''}
+                  {meta.soldCount ? ` • ${t('sold', { count: formatNumber(meta.soldCount) })}` : ''}
                 </p>
               )}
             </div>
@@ -192,7 +196,7 @@ export default async function PostDetailPage({
               className="flex w-full items-center justify-center gap-xs rounded-lg bg-primary px-lg py-sm font-headline-md text-body-md text-on-primary transition-colors hover:bg-primary-container sm:w-auto"
             >
               <Icon name="shopping_cart" className="text-sm" />
-              Mua ngay
+              {t('buyNow')}
             </a>
           </div>
 
@@ -210,7 +214,7 @@ export default async function PostDetailPage({
             <BookmarkButton postId={post.id} />
             <ShareButton postId={post.id} username={post.user.username} initialCount={post.shareCount ?? 0} />
             <div className="ml-auto">
-              <ReportButton targetType="POST" targetId={post.id} label="Báo cáo" />
+              <ReportButton targetType="POST" targetId={post.id} label={t('report')} />
             </div>
           </div>
         </article>
@@ -224,7 +228,7 @@ export default async function PostDetailPage({
       {/* Related products */}
       <aside className="hidden w-80 shrink-0 lg:block">
         <div className="sticky top-6 rounded-xl border border-outline-variant bg-surface p-md shadow-sm">
-          <h3 className="mb-md font-headline-md text-headline-md text-on-surface">Sản phẩm liên quan</h3>
+          <h3 className="mb-md font-headline-md text-headline-md text-on-surface">{t('relatedTitle')}</h3>
           <div className="flex flex-col gap-md">
             {related
               .filter((p) => p.id !== post.id)

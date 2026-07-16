@@ -1,21 +1,23 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { useAuth } from '@/lib/auth-context';
 
 export function MobileNav() {
+  const t = useTranslations('nav');
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
 
   const items = [
-    { href: '/', icon: 'home', label: 'Trang chủ' },
-    { href: '/search', icon: 'search', label: 'Tìm kiếm' },
-    { href: '/create', icon: 'add_circle', label: 'Đăng', auth: true },
-    { href: '/notifications', icon: 'notifications', label: 'Thông báo', auth: true },
-    { href: user ? `/${user.username}` : '/auth/login', icon: 'person', label: 'Cá nhân' },
+    { href: '/', icon: 'home', label: t('home') },
+    { href: '/search', icon: 'search', label: t('search') },
+    { href: '/create', icon: 'add_circle', label: t('post'), auth: true },
+    { href: '/notifications', icon: 'notifications', label: t('notifications'), auth: true },
+    { href: user ? `/${user.username}` : '/auth/login', icon: 'person', label: t('profile') },
   ];
 
   return (

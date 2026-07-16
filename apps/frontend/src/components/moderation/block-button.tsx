@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { moderationApi } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
@@ -11,6 +12,7 @@ interface Props {
 
 /** Block toggles to a "blocked" state; unblock via settings. */
 export function BlockButton({ username, className }: Props) {
+  const t = useTranslations('moderation');
   const [blocked, setBlocked] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -38,7 +40,7 @@ export function BlockButton({ username, className }: Props) {
         className,
       )}
     >
-      {blocked ? 'Bỏ chặn' : 'Chặn'}
+      {blocked ? t('unblock') : t('block')}
     </button>
   );
 }

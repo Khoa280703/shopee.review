@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { buttonClasses } from '@/components/ui/button-classes';
@@ -9,6 +12,7 @@ import { TimeAgo } from '@/components/ui/time-ago';
 import type { Post } from '@/types';
 
 export function PostCard({ post }: { post: Post }) {
+  const t = useTranslations('post');
   const cover = resolveAssetUrl(post.images?.[0]);
   const meta = post.productMeta ?? {};
   const sale = meta.salePrice ?? null;
@@ -28,7 +32,7 @@ export function PostCard({ post }: { post: Post }) {
             className="object-cover transition duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-on-surface-variant">Không có ảnh</div>
+          <div className="flex h-full items-center justify-center text-on-surface-variant">{t('noImage')}</div>
         )}
         {discount ? (
           <span className="absolute left-2 top-2 rounded bg-primary px-2 py-0.5 text-label-caps font-bold text-on-primary">
@@ -90,7 +94,7 @@ export function PostCard({ post }: { post: Post }) {
             className={buttonClasses({ className: 'mt-1 h-9 gap-1 rounded-lg shadow-sm' })}
           >
             <Icon name="shopping_bag" className="text-[16px]" />
-            Mua ngay
+            {t('buyNow')}
           </a>
         ) : null}
       </div>

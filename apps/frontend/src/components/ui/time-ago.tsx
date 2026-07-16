@@ -1,24 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { timeAgo } from '@/lib/format';
+import { useFormatter } from 'next-intl';
 
 /**
- * Renders a relative timestamp. timeAgo() depends on Date.now(), which differs
- * between the SSR render and hydration and otherwise triggers a React hydration
- * mismatch. suppressHydrationWarning accepts the initial diff; the mount effect
- * then recomputes against the client clock (and keeps it reasonably fresh).
+ * Locale-aware relative timestamp ("5 minutes ago" / "5 phút trước") via
+ * next-intl's formatter, which reads the active locale. The relative base is the
+ * current time, so it differs between the SSR render and hydration —
+ * suppressHydrationWarning accepts that; the interval keeps it fresh on the client.
  */
 export function TimeAgo({ date, className }: { date: string; className?: string }) {
+  const format = useFormatter();
   const [, tick] = useState(0);
   useEffect(() => {
-    tick(1);
     const id = setInterval(() => tick((n) => n + 1), 60_000);
     return () => clearInterval(id);
   }, []);
   return (
     <time dateTime={date} suppressHydrationWarning className={className}>
-      {timeAgo(date)}
+      {format.relativeTime(new Date(date))}
     </time>
   );
 }

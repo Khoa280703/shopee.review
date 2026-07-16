@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import { cn } from '@/lib/cn';
 import type { Post, UserProfile } from '@/types';
 
 function SearchInner() {
+  const t = useTranslations('search');
   const params = useSearchParams();
   const router = useRouter();
   const initialQ = params.get('q') ?? '';
@@ -56,7 +58,7 @@ function SearchInner() {
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Tìm bài review, người dùng..."
+          placeholder={t('placeholder')}
           className="h-12 rounded-full pl-12 pr-5"
         />
       </form>
@@ -64,32 +66,32 @@ function SearchInner() {
       {initialQ && (
         <>
           <div className="flex gap-2">
-            {(['posts', 'users'] as const).map((t) => (
+            {(['posts', 'users'] as const).map((tabKey) => (
               <button
-                key={t}
-                onClick={() => setTab(t)}
+                key={tabKey}
+                onClick={() => setTab(tabKey)}
                 className={cn(
                   'rounded-full px-4 py-1.5 text-body-sm font-medium transition',
-                  tab === t
+                  tab === tabKey
                     ? 'bg-primary text-on-primary'
                     : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high',
                 )}
               >
-                {t === 'posts' ? `Bài viết (${posts.length})` : `Người dùng (${users.length})`}
+                {tabKey === 'posts' ? t('postsTab', { count: posts.length }) : t('usersTab', { count: users.length })}
               </button>
             ))}
           </div>
 
           {loading ? (
-            <p className="text-body-sm text-on-surface-variant">Đang tìm...</p>
+            <p className="text-body-sm text-on-surface-variant">{t('searching')}</p>
           ) : failed ? (
-            <p className="text-body-sm text-error">Tìm kiếm thất bại. Vui lòng thử lại.</p>
+            <p className="text-body-sm text-error">{t('searchFailed')}</p>
           ) : tab === 'posts' ? (
             <PostGrid posts={posts} />
           ) : (
             <div className="space-y-2">
               {users.length === 0 ? (
-                <p className="text-body-sm text-on-surface-variant">Không tìm thấy người dùng.</p>
+                <p className="text-body-sm text-on-surface-variant">{t('noUsers')}</p>
               ) : (
                 users.map((u) => (
                   <Link
@@ -113,9 +115,14 @@ function SearchInner() {
   );
 }
 
+function SearchFallback() {
+  const common = useTranslations('common');
+  return <div className="py-16 text-center text-on-surface-variant">{common('loading')}</div>;
+}
+
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="py-16 text-center text-on-surface-variant">Đang tải...</div>}>
+    <Suspense fallback={<SearchFallback />}>
       <SearchInner />
     </Suspense>
   );

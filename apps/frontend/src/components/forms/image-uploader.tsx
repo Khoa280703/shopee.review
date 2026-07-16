@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { ImagePlus, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { uploadImage } from '@/lib/api';
 import { resolveAssetUrl } from '@/lib/constants';
 
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function ImageUploader({ images, onChange, max = 10 }: Props) {
+  const t = useTranslations('create');
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +33,7 @@ export function ImageUploader({ images, onChange, max = 10 }: Props) {
       }
       onChange([...images, ...uploaded]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload thất bại');
+      setError(e instanceof Error ? e.message : t('errors.uploadFailed'));
     } finally {
       setUploading(false);
     }
@@ -67,7 +69,7 @@ export function ImageUploader({ images, onChange, max = 10 }: Props) {
             className="flex h-24 w-24 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-outline-variant text-on-surface-variant transition hover:border-primary hover:text-primary disabled:opacity-60"
           >
             <ImagePlus size={20} />
-            <span className="text-label-caps">{uploading ? 'Đang tải...' : 'Thêm ảnh'}</span>
+            <span className="text-label-caps">{uploading ? t('uploading') : t('addImage')}</span>
           </button>
         )}
       </div>

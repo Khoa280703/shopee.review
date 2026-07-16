@@ -1,40 +1,330 @@
 {
-  "nav": {
-    "home": "Trang chủ",
-    "explore": "Khám phá",
-    "forYou": "Dành cho bạn",
-    "following": "Đang theo dõi",
-    "feed": "Bảng tin",
-    "notifications": "Thông báo",
-    "saved": "Đã lưu",
-    "profile": "Trang cá nhân",
-    "dashboard": "Thống kê",
-    "admin": "Quản trị",
-    "settings": "Cài đặt",
-    "search": "Khám phá",
-    "post": "Đăng bài",
-    "login": "Đăng nhập",
-    "logout": "Đăng xuất"
+  "admin": {
+    "banUser": "Khoá tài khoản",
+    "deleteComment": "Xoá bình luận",
+    "deletePost": "Xoá bài",
+    "dismiss": "Bỏ qua",
+    "noReports": "Không có báo cáo nào.",
+    "reportedBy": "bởi @{username}",
+    "resolve": "Đã xử lý",
+    "title": "Quản trị · Báo cáo chờ xử lý"
+  },
+  "auth": {
+    "callback": {
+      "loading": "Đang đăng nhập..."
+    },
+    "common": {
+      "backToLogin": "Quay lại đăng nhập",
+      "loadingEllipsis": "Đang tải...",
+      "or": "hoặc"
+    },
+    "forgot": {
+      "description": "Nhập email của bạn, chúng tôi sẽ gửi link đặt lại mật khẩu.",
+      "emailPlaceholder": "Email",
+      "sentMessage": "Nếu email tồn tại trong hệ thống, chúng tôi đã gửi link đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.",
+      "submit": "Gửi link đặt lại",
+      "submitLoading": "Đang gửi...",
+      "title": "Quên mật khẩu"
+    },
+    "login": {
+      "emailPlaceholder": "Email",
+      "error": "Đăng nhập thất bại",
+      "facebook": "Đăng nhập với Facebook",
+      "forgotPassword": "Quên mật khẩu?",
+      "google": "Đăng nhập với Google",
+      "noAccount": "Chưa có tài khoản?",
+      "passwordPlaceholder": "Mật khẩu",
+      "register": "Đăng ký",
+      "submit": "Đăng nhập",
+      "submitLoading": "Đang đăng nhập...",
+      "title": "Đăng nhập"
+    },
+    "register": {
+      "displayNamePlaceholder": "Tên hiển thị",
+      "emailPlaceholder": "Email",
+      "error": "Đăng ký thất bại",
+      "facebook": "Đăng ký với Facebook",
+      "google": "Đăng ký với Google",
+      "haveAccount": "Đã có tài khoản?",
+      "login": "Đăng nhập",
+      "passwordPlaceholder": "Mật khẩu (tối thiểu 8 ký tự)",
+      "submit": "Đăng ký",
+      "submitLoading": "Đang tạo tài khoản...",
+      "title": "Đăng ký",
+      "usernamePlaceholder": "Username (a-z, 0-9, _)",
+      "verifyNotice": "Sau khi đăng ký, kiểm tra email để xác minh trước khi đăng bài."
+    },
+    "reset": {
+      "confirmPasswordPlaceholder": "Xác nhận mật khẩu",
+      "error": "Đặt lại mật khẩu thất bại",
+      "invalidToken": "Link không hợp lệ. Vui lòng yêu cầu đặt lại mật khẩu mới.",
+      "mismatchError": "Mật khẩu xác nhận không khớp",
+      "newPasswordPlaceholder": "Mật khẩu mới",
+      "submit": "Đặt lại mật khẩu",
+      "submitLoading": "Đang lưu...",
+      "successMessage": "Đặt lại mật khẩu thành công! Đang chuyển đến trang đăng nhập...",
+      "title": "Đặt lại mật khẩu"
+    },
+    "verify": {
+      "errorMessage": "Link không hợp lệ hoặc đã hết hạn.",
+      "errorTitle": "Xác minh thất bại",
+      "homeButton": "Về trang chủ",
+      "postNow": "Đăng bài ngay",
+      "resendButton": "Gửi lại email xác minh",
+      "resentMessage": "Đã gửi lại email xác minh (nếu tài khoản chưa xác minh). Kiểm tra hộp thư.",
+      "successMessage": "Bạn đã có thể đăng bài review.",
+      "successTitle": "Xác minh thành công!",
+      "verifying": "Đang xác minh email..."
+    }
   },
   "common": {
-    "save": "Lưu",
+    "all": "Tất cả",
     "cancel": "Huỷ",
     "close": "Đóng",
-    "retry": "Thử lại",
+    "follow": "Theo dõi",
+    "likesCount": "{count} lượt thích",
     "loading": "Đang tải...",
-    "submit": "Gửi",
     "more": "Xem thêm",
-    "search": "Tìm kiếm"
+    "privacy": "Quyền riêng tư",
+    "retry": "Thử lại",
+    "save": "Lưu",
+    "search": "Tìm kiếm",
+    "submit": "Gửi",
+    "suggestedFollows": "Gợi ý theo dõi",
+    "terms": "Điều khoản",
+    "trendingProducts": "Sản phẩm nổi bật"
+  },
+  "create": {
+    "addImage": "Thêm ảnh",
+    "addLink": "Thêm link",
+    "addProduct": "Thêm sản phẩm",
+    "affiliateHint": "Đăng ký Shopee Affiliate tại affiliate.shopee.vn để lấy link kiếm hoa hồng.",
+    "affiliateUrlLabel": "🏷️ Link affiliate của bạn",
+    "affiliateUrlPlaceholder": "Dán link affiliate Shopee của bạn",
+    "cancel": "Hủy",
+    "categoryLabel": "📁 Danh mục",
+    "categoryPlaceholder": "-- Chọn danh mục --",
+    "contentLabel": "💭 Nội dung review",
+    "contentPlaceholder": "Chia sẻ trải nghiệm thật của bạn...",
+    "emailVerifyNotice": "Bạn cần xác minh email trước khi đăng bài. Kiểm tra hộp thư của bạn.",
+    "errors": {
+      "createFailed": "Đăng bài thất bại",
+      "emailNotVerified": "Vui lòng xác minh email trước khi đăng bài.",
+      "missingFields": "Vui lòng nhập tiêu đề, link sản phẩm, link affiliate và ít nhất 1 ảnh.",
+      "scrapeFailed": "Không lấy được thông tin sản phẩm",
+      "uploadFailed": "Upload thất bại"
+    },
+    "imagesLabel": "📸 Ảnh sản phẩm",
+    "loading": "Đang tải...",
+    "priceLabel": "Giá: {price}đ",
+    "productUrlLabel": "🔗 Link sản phẩm Shopee",
+    "promptPlaceholder": "Bạn đang review sản phẩm gì hôm nay?",
+    "publish": "Đăng",
+    "publishing": "Đang đăng...",
+    "shopLabel": "Shop: {shopName}",
+    "title": "Tạo bài review",
+    "titleLabel": "📝 Tiêu đề bài review",
+    "titlePlaceholder": "Ví dụ: Đánh giá tai nghe XYZ sau 1 tháng dùng",
+    "uploading": "Đang tải...",
+    "urlPlaceholder": "Dán link sản phẩm Shopee..."
+  },
+  "dashboard": {
+    "clicks": "Lượt click",
+    "clicksLast7Days": "Clicks 7 ngày qua",
+    "colClicks": "Clicks",
+    "colComments": "Bình luận",
+    "colLikes": "Likes",
+    "colTitle": "Tiêu đề",
+    "followers": "Người theo dõi",
+    "noClickData": "Chưa có dữ liệu click.",
+    "noPosts": "Chưa có bài viết nào.",
+    "postStats": "Thống kê theo bài",
+    "posts": "Bài đăng"
+  },
+  "errors": {
+    "backHome": "Về trang chủ",
+    "feedLoadFailed": "Không tải được bảng tin. Vui lòng thử lại sau.",
+    "genericTitle": "Đã có lỗi xảy ra",
+    "notFoundMessage": "Không tìm thấy trang bạn yêu cầu.",
+    "tryAgainLater": "Vui lòng thử lại sau."
+  },
+  "moderation": {
+    "block": "Chặn",
+    "reasons": {
+      "FAKE": "Thông tin giả",
+      "OFFENSIVE": "Nội dung phản cảm",
+      "OTHER": "Khác",
+      "SCAM": "Lừa đảo",
+      "SPAM": "Spam"
+    },
+    "report": {
+      "cancel": "Huỷ",
+      "close": "Đóng",
+      "detailPlaceholder": "Mô tả thêm (tuỳ chọn)",
+      "done": {
+        "message": "Cảm ơn bạn đã giúp giữ cộng đồng an toàn.",
+        "title": "Đã gửi báo cáo"
+      },
+      "error": "Gửi báo cáo thất bại. Vui lòng thử lại.",
+      "retry": "Thử lại",
+      "sending": "Đang gửi...",
+      "submit": "Gửi báo cáo",
+      "title": "Báo cáo nội dung"
+    },
+    "unblock": "Bỏ chặn"
+  },
+  "nav": {
+    "admin": "Quản trị",
+    "dashboard": "Thống kê",
+    "explore": "Khám phá",
+    "feed": "Bảng tin",
+    "following": "Đang theo dõi",
+    "forYou": "Dành cho bạn",
+    "home": "Trang chủ",
+    "login": "Đăng nhập",
+    "logout": "Đăng xuất",
+    "notifications": "Thông báo",
+    "post": "Đăng bài",
+    "profile": "Trang cá nhân",
+    "saved": "Đã lưu",
+    "search": "Khám phá",
+    "settings": "Cài đặt"
+  },
+  "notifications": {
+    "action": {
+      "COMMENT": "đã bình luận về bài review của bạn",
+      "FOLLOW": "đã bắt đầu theo dõi bạn",
+      "LIKE": "đã thích bài review của bạn",
+      "MENTION": "đã nhắc đến bạn",
+      "NEW_POST": "vừa đăng bài review mới"
+    },
+    "empty": "Chưa có thông báo nào.",
+    "loadingMore": "Đang tải...",
+    "showMore": "Xem thêm",
+    "tabs": {
+      "COMMENT": "Bình luận",
+      "FOLLOW": "Theo dõi",
+      "LIKE": "Lượt thích",
+      "all": "Tất cả"
+    },
+    "tips": {
+      "body": "Đăng bài review chất lượng và tương tác với cộng đồng để nhận thêm lượt theo dõi và thu nhập affiliate.",
+      "title": "Mẹo"
+    },
+    "title": "Thông báo"
+  },
+  "post": {
+    "buyNow": "Mua ngay",
+    "defaultTitle": "Bài review",
+    "emptyList": "Chưa có bài review nào.",
+    "noImage": "Không có ảnh",
+    "relatedTitle": "Sản phẩm liên quan",
+    "report": "Báo cáo",
+    "sold": "Đã bán {count}"
+  },
+  "profile": {
+    "edit": "Chỉnh sửa",
+    "followers": "Người theo dõi",
+    "following": "Đang theo dõi",
+    "metaDescription": "Các bài review của {displayName} trên shopee.review",
+    "noProducts": "Chưa có sản phẩm nào được review.",
+    "reviews": "Bài review",
+    "statFollowers": "Theo dõi",
+    "statFollowing": "Đang theo",
+    "statPosts": "Bài",
+    "tabPosts": "Bài đăng",
+    "tabProducts": "Sản phẩm"
+  },
+  "saved": {
+    "empty": "Bạn chưa lưu bài viết nào.",
+    "loadFailed": "Không tải được danh sách đã lưu. Vui lòng thử lại."
+  },
+  "search": {
+    "noUsers": "Không tìm thấy người dùng.",
+    "placeholder": "Tìm bài review, người dùng...",
+    "postsTab": "Bài viết ({count})",
+    "searchFailed": "Tìm kiếm thất bại. Vui lòng thử lại.",
+    "searching": "Đang tìm...",
+    "usersTab": "Người dùng ({count})"
   },
   "settings": {
-    "title": "Cài đặt",
+    "affiliateId": "Affiliate ID Shopee",
+    "affiliateIdPlaceholder": "Affiliate ID của bạn",
+    "affiliateRegisterHint": "Đăng ký tại affiliate.shopee.vn",
     "appearance": "Giao diện",
-    "theme": "Chủ đề",
-    "themeLight": "Sáng",
-    "themeDark": "Tối",
-    "themeSystem": "Theo hệ thống",
+    "bio": "Giới thiệu",
+    "blockedUsers": "Người dùng đã chặn",
+    "changeAvatar": "Đổi ảnh đại diện",
+    "changePassword": "Đổi mật khẩu",
+    "changingPassword": "Đang đổi...",
+    "confirmDeleteAccount": "Tôi chắc chắn, xóa tài khoản",
+    "currentPassword": "Mật khẩu hiện tại",
+    "dangerZone": "Vùng nguy hiểm",
+    "deleteAccount": "Xóa tài khoản",
+    "deleteAccountFailed": "Xóa tài khoản thất bại",
+    "deleteAccountWarning": "Xóa tài khoản sẽ gỡ bỏ vĩnh viễn toàn bộ bài viết, bình luận, lượt thích và người theo dõi của bạn. Hành động này không thể hoàn tác.",
+    "deletingAccount": "Đang xóa...",
+    "displayName": "Tên hiển thị",
+    "hiddenIp": "IP ẩn",
     "language": "Ngôn ngữ",
+    "languageEn": "English",
     "languageVi": "Tiếng Việt",
-    "languageEn": "English"
+    "logoutOtherDevices": "Đăng xuất thiết bị khác",
+    "logoutSession": "Đăng xuất",
+    "newPassword": "Mật khẩu mới",
+    "noBlockedUsers": "Bạn chưa chặn ai.",
+    "noSessions": "Không có phiên nào.",
+    "passwordChangeFailed": "Đổi mật khẩu thất bại",
+    "passwordChanged": "Đã đổi mật khẩu. Các phiên đăng nhập khác đã bị đăng xuất.",
+    "saveChanges": "Lưu thay đổi",
+    "saveFailed": "Lưu thất bại",
+    "saveSuccess": "Đã lưu thay đổi.",
+    "saving": "Đang lưu...",
+    "sessions": "Phiên đăng nhập",
+    "theme": "Chủ đề",
+    "themeDark": "Tối",
+    "themeLight": "Sáng",
+    "themeSystem": "Theo hệ thống",
+    "thisDevice": "thiết bị này",
+    "title": "Cài đặt",
+    "unblock": "Bỏ chặn",
+    "unknownDevice": "Thiết bị không rõ"
+  },
+  "social": {
+    "bookmark": {
+      "ariaLabel": "Lưu bài viết"
+    },
+    "comments": {
+      "delete": "Xóa",
+      "empty": "Chưa có bình luận nào. Hãy là người đầu tiên!",
+      "errorAdd": "Không gửi được bình luận. Vui lòng thử lại.",
+      "errorDelete": "Không xoá được bình luận. Vui lòng thử lại.",
+      "errorReply": "Không gửi được trả lời. Vui lòng thử lại.",
+      "loading": "Đang tải bình luận...",
+      "loadingMore": "Đang tải...",
+      "loginToComment": "Đăng nhập để bình luận",
+      "placeholder": "Viết bình luận...",
+      "reply": "Trả lời",
+      "replyPlaceholder": "Viết trả lời...",
+      "send": "Gửi",
+      "showMoreReplies": "Xem thêm {count} trả lời",
+      "title": "Bình luận"
+    },
+    "follow": {
+      "follow": "Theo dõi",
+      "following": "Đang theo dõi"
+    },
+    "reactions": {
+      "ANGRY": "Phẫn nộ",
+      "HAHA": "Haha",
+      "LIKE": "Thích",
+      "LOVE": "Yêu thích",
+      "SAD": "Buồn",
+      "WOW": "Wow",
+      "ariaLabel": "Bày tỏ cảm xúc"
+    },
+    "share": {
+      "ariaLabel": "Chia sẻ"
+    }
   }
 }

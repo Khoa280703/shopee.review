@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { useNotifications } from '@/hooks/use-notifications';
@@ -9,29 +10,25 @@ import { TimeAgo } from '@/components/ui/time-ago';
 import { cn } from '@/lib/cn';
 import type { AppNotification, NotificationType } from '@/types';
 
-const TABS: { id: 'all' | NotificationType; label: string }[] = [
-  { id: 'all', label: 'Tất cả' },
-  { id: 'LIKE', label: 'Lượt thích' },
-  { id: 'COMMENT', label: 'Bình luận' },
-  { id: 'FOLLOW', label: 'Theo dõi' },
-];
+const TAB_IDS: ('all' | NotificationType)[] = ['all', 'LIKE', 'COMMENT', 'FOLLOW'];
 
-function meta(type: NotificationType): { icon: string; bg: string; fg: string; text: string } {
+function meta(type: NotificationType): { icon: string; bg: string; fg: string } {
   switch (type) {
     case 'LIKE':
-      return { icon: 'favorite', bg: 'bg-secondary-container', fg: 'text-on-secondary-container', text: 'đã thích bài review của bạn' };
+      return { icon: 'favorite', bg: 'bg-secondary-container', fg: 'text-on-secondary-container' };
     case 'COMMENT':
-      return { icon: 'chat_bubble', bg: 'bg-tertiary-container', fg: 'text-on-tertiary-container', text: 'đã bình luận về bài review của bạn' };
+      return { icon: 'chat_bubble', bg: 'bg-tertiary-container', fg: 'text-on-tertiary-container' };
     case 'FOLLOW':
-      return { icon: 'person_add', bg: 'bg-primary-container', fg: 'text-on-primary-container', text: 'đã bắt đầu theo dõi bạn' };
+      return { icon: 'person_add', bg: 'bg-primary-container', fg: 'text-on-primary-container' };
     case 'NEW_POST':
-      return { icon: 'post_add', bg: 'bg-primary-container', fg: 'text-on-primary-container', text: 'vừa đăng bài review mới' };
+      return { icon: 'post_add', bg: 'bg-primary-container', fg: 'text-on-primary-container' };
     default:
-      return { icon: 'notifications', bg: 'bg-surface-container', fg: 'text-on-surface-variant', text: 'đã nhắc đến bạn' };
+      return { icon: 'notifications', bg: 'bg-surface-container', fg: 'text-on-surface-variant' };
   }
 }
 
 export default function NotificationsPage() {
+  const t = useTranslations('notifications');
   const { notifications, unreadCount, markAllRead, loadMore, hasMore, loadingMore } =
     useNotifications();
   const [tab, setTab] = useState<'all' | NotificationType>('all');
@@ -54,23 +51,23 @@ export default function NotificationsPage() {
       <div className="flex w-full flex-1 flex-col gap-lg lg:max-w-[700px]">
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-surface-container-high bg-background/95 px-4 py-sm backdrop-blur-sm sm:px-0">
-          <h1 className="font-display-lg-mobile text-display-lg-mobile text-on-background">Thông báo</h1>
+          <h1 className="font-display-lg-mobile text-display-lg-mobile text-on-background">{t('title')}</h1>
         </div>
 
         {/* Filter chips */}
         <div className="no-scrollbar flex gap-2 overflow-x-auto border-b border-surface-container px-4 pb-3 sm:px-0">
-          {TABS.map((t) => (
+          {TAB_IDS.map((id) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={id}
+              onClick={() => setTab(id)}
               className={cn(
                 'whitespace-nowrap rounded-full px-md py-sm font-label-caps text-label-caps transition-colors',
-                tab === t.id
+                tab === id
                   ? 'bg-primary text-on-primary shadow-sm'
                   : 'border border-outline-variant bg-surface-container-high text-on-surface hover:bg-surface-variant',
               )}
             >
-              {t.label}
+              {t(`tabs.${id}`)}
             </button>
           ))}
         </div>
@@ -79,7 +76,7 @@ export default function NotificationsPage() {
         <div className="flex flex-col sm:gap-sm">
           {filtered.length === 0 ? (
             <div className="mx-4 rounded-xl border border-dashed border-outline-variant py-16 text-center text-on-surface-variant sm:mx-0">
-              Chưa có thông báo nào.
+              {t('empty')}
             </div>
           ) : (
             filtered.map((n: AppNotification) => {
@@ -103,7 +100,7 @@ export default function NotificationsPage() {
                     <div className="mb-1 flex items-center gap-sm">
                       <Avatar src={n.actor.avatarUrl} name={n.actor.displayName} size={24} />
                       <p className="font-body-md text-body-md text-on-surface">
-                        <strong>{n.actor.displayName}</strong> {m.text}
+                        <strong>{n.actor.displayName}</strong> {t(`action.${n.type}`)}
                       </p>
                     </div>
                     {n.post?.title && (
@@ -123,7 +120,7 @@ export default function NotificationsPage() {
               disabled={loadingMore}
               className="mx-4 mt-md rounded-full border border-outline-variant py-sm font-label-caps text-label-caps text-on-surface transition-colors hover:bg-surface-container disabled:opacity-60 sm:mx-0"
             >
-              {loadingMore ? 'Đang tải...' : 'Xem thêm'}
+              {loadingMore ? t('loadingMore') : t('showMore')}
             </button>
           )}
         </div>
@@ -132,9 +129,9 @@ export default function NotificationsPage() {
       {/* Right rail */}
       <aside className="hidden w-80 shrink-0 xl:block">
         <div className="rounded-xl border border-surface-container-high bg-surface p-md shadow-sm">
-          <h3 className="mb-md font-headline-md text-headline-md text-on-surface">Mẹo</h3>
+          <h3 className="mb-md font-headline-md text-headline-md text-on-surface">{t('tips.title')}</h3>
           <p className="font-body-sm text-body-sm text-on-surface-variant">
-            Đăng bài review chất lượng và tương tác với cộng đồng để nhận thêm lượt theo dõi và thu nhập affiliate.
+            {t('tips.body')}
           </p>
         </div>
       </aside>

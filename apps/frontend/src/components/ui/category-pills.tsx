@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/cn';
 import type { Category } from '@/types';
 
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function CategoryPills({ categories, activeSlug }: Props) {
+  const t = useTranslations('common');
   return (
     <div className="flex gap-2 overflow-x-auto pb-1">
       <Link
@@ -21,7 +23,7 @@ export function CategoryPills({ categories, activeSlug }: Props) {
             : 'border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high',
         )}
       >
-        Tất cả
+        {t('all')}
       </Link>
       {categories.map((c) => (
         <Link

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { FollowButton } from '@/components/social/follow-button';
 import { BlockButton } from '@/components/moderation/block-button';
@@ -12,6 +13,7 @@ import { formatNumber } from '@/lib/format';
 import type { UserProfile } from '@/types';
 
 export function UserProfileHeader({ profile }: { profile: UserProfile }) {
+  const t = useTranslations('profile');
   const { user } = useAuth();
   const [following, setFollowing] = useState(profile.isFollowing);
   const isSelf = user?.username === profile.username;
@@ -30,7 +32,7 @@ export function UserProfileHeader({ profile }: { profile: UserProfile }) {
       href="/settings"
       className="rounded-full border border-outline-variant bg-surface-container px-lg py-2 text-center font-headline-md text-headline-md font-semibold text-on-surface transition-colors hover:bg-surface-container-high"
     >
-      Chỉnh sửa
+      {t('edit')}
     </Link>
   ) : (
     <div className="flex items-center gap-2">
@@ -56,19 +58,19 @@ export function UserProfileHeader({ profile }: { profile: UserProfile }) {
               <span className="font-headline-md text-headline-md font-bold text-on-surface">
                 {formatNumber(profile.totalPosts)}
               </span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant">Bài</span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant">{t('statPosts')}</span>
             </div>
             <div className="flex flex-col">
               <span className="font-headline-md text-headline-md font-bold text-on-surface">
                 {formatNumber(profile.followersCount)}
               </span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant">Theo dõi</span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant">{t('statFollowers')}</span>
             </div>
             <div className="flex flex-col">
               <span className="font-headline-md text-headline-md font-bold text-on-surface">
                 {formatNumber(profile.followingCount)}
               </span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant">Đang theo</span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant">{t('statFollowing')}</span>
             </div>
           </div>
         </div>
@@ -107,19 +109,19 @@ export function UserProfileHeader({ profile }: { profile: UserProfile }) {
               <span className="font-headline-md text-headline-md text-on-surface">
                 {formatNumber(profile.totalPosts)}
               </span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant">Bài review</span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant">{t('reviews')}</span>
             </span>
             <span className="flex items-baseline gap-xs">
               <span className="font-headline-md text-headline-md text-on-surface">
                 {formatNumber(profile.followersCount)}
               </span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant">Người theo dõi</span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant">{t('followers')}</span>
             </span>
             <span className="flex items-baseline gap-xs">
               <span className="font-headline-md text-headline-md text-on-surface">
                 {formatNumber(profile.followingCount)}
               </span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant">Đang theo dõi</span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant">{t('following')}</span>
             </span>
           </div>
         </div>

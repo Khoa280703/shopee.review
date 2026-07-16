@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/ui/icon';
 import { socialApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function BookmarkButton({ postId, initialBookmarked = false }: Props) {
+  const t = useTranslations('social');
   const { user } = useAuth();
   const router = useRouter();
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
@@ -40,7 +42,7 @@ export function BookmarkButton({ postId, initialBookmarked = false }: Props) {
     <button
       onClick={toggle}
       disabled={pending}
-      aria-label="Lưu bài viết"
+      aria-label={t('bookmark.ariaLabel')}
       className={cn('flex items-center gap-xs transition-colors', bookmarked ? 'text-primary' : 'hover:text-primary')}
     >
       <Icon name="bookmark" fill={bookmarked} className="text-lg" />

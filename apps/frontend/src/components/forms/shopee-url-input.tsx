@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { postsApi } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import type { ScrapedProduct } from '@/types';
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function ShopeeUrlInput({ value, onChange, onScraped }: Props) {
+  const t = useTranslations('create');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -30,7 +32,7 @@ export function ShopeeUrlInput({ value, onChange, onScraped }: Props) {
       const data = await postsApi.scrape(url);
       onScraped(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Không lấy được thông tin sản phẩm');
+      setError(e instanceof Error ? e.message : t('errors.scrapeFailed'));
     } finally {
       setLoading(false);
     }
@@ -45,7 +47,7 @@ export function ShopeeUrlInput({ value, onChange, onScraped }: Props) {
             onChange(e.target.value);
             scheduleScrape(e.target.value);
           }}
-          placeholder="Dán link sản phẩm Shopee..."
+          placeholder={t('urlPlaceholder')}
           className="pl-4 pr-11"
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant">

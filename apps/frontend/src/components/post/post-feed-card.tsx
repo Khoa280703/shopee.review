@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { buttonClasses } from '@/components/ui/button-classes';
@@ -12,6 +15,7 @@ import { TimeAgo } from '@/components/ui/time-ago';
 import type { Post } from '@/types';
 
 export function PostFeedCard({ post }: { post: Post }) {
+  const t = useTranslations('post');
   const images = (post.images ?? []).map(resolveAssetUrl).filter(Boolean) as string[];
   const meta = post.productMeta ?? {};
   const sale = meta.salePrice ?? null;
@@ -135,7 +139,7 @@ export function PostFeedCard({ post }: { post: Post }) {
               className={buttonClasses({ className: 'h-9 shrink-0 gap-1 rounded-lg shadow-sm' })}
             >
               <Icon name="shopping_bag" className="text-[16px]" />
-              Mua ngay
+              {t('buyNow')}
             </a>
           </div>
         ) : null}

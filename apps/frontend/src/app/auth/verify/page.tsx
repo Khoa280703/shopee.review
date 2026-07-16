@@ -3,11 +3,13 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { authApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { buttonClasses } from '@/components/ui/button-classes';
 
 function VerifyInner() {
+  const t = useTranslations('auth');
   const params = useSearchParams();
   const token = params.get('token');
   const { refresh, user } = useAuth();
@@ -35,32 +37,32 @@ function VerifyInner() {
 
   return (
     <div className="mx-auto max-w-md py-16 text-center">
-      {status === 'loading' && <p className="text-on-surface-variant">Đang xác minh email...</p>}
+      {status === 'loading' && <p className="text-on-surface-variant">{t('verify.verifying')}</p>}
       {status === 'ok' && (
         <div className="space-y-4">
-          <h1 className="text-headline-md font-bold text-tertiary">Xác minh thành công!</h1>
-          <p className="text-on-surface-variant">Bạn đã có thể đăng bài review.</p>
+          <h1 className="text-headline-md font-bold text-tertiary">{t('verify.successTitle')}</h1>
+          <p className="text-on-surface-variant">{t('verify.successMessage')}</p>
           <Link href="/create" className={buttonClasses({ size: 'lg' })}>
-            Đăng bài ngay
+            {t('verify.postNow')}
           </Link>
         </div>
       )}
       {status === 'error' && (
         <div className="space-y-4">
-          <h1 className="text-headline-md font-bold text-error">Xác minh thất bại</h1>
-          <p className="text-on-surface-variant">Link không hợp lệ hoặc đã hết hạn.</p>
+          <h1 className="text-headline-md font-bold text-error">{t('verify.errorTitle')}</h1>
+          <p className="text-on-surface-variant">{t('verify.errorMessage')}</p>
           {user?.email &&
             (resent ? (
               <p className="text-body-sm text-tertiary">
-                Đã gửi lại email xác minh (nếu tài khoản chưa xác minh). Kiểm tra hộp thư.
+                {t('verify.resentMessage')}
               </p>
             ) : (
               <button onClick={resend} className={buttonClasses({ size: 'lg' })}>
-                Gửi lại email xác minh
+                {t('verify.resendButton')}
               </button>
             ))}
           <Link href="/" className={buttonClasses({ variant: 'outline', size: 'lg' })}>
-            Về trang chủ
+            {t('verify.homeButton')}
           </Link>
         </div>
       )}
@@ -69,8 +71,9 @@ function VerifyInner() {
 }
 
 export default function VerifyPage() {
+  const t = useTranslations('auth');
   return (
-    <Suspense fallback={<div className="py-16 text-center text-on-surface-variant">Đang tải...</div>}>
+    <Suspense fallback={<div className="py-16 text-center text-on-surface-variant">{t('common.loadingEllipsis')}</div>}>
       <VerifyInner />
     </Suspense>
   );

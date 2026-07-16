@@ -1,12 +1,14 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import type { ClickChart as ClickChartData } from '@/types';
 
 export function ClickChart({ chart }: { chart: ClickChartData }) {
+  const t = useTranslations('dashboard');
   const max = Math.max(1, ...chart.data.map((d) => d.clicks));
 
   if (chart.data.length === 0) {
-    return <p className="py-8 text-center text-sm text-on-surface-variant">Chưa có dữ liệu click.</p>;
+    return <p className="py-8 text-center text-sm text-on-surface-variant">{t('noClickData')}</p>;
   }
 
   return (

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@/components/ui/icon';
 import { socialApi, type ReactionKind } from '@/lib/api';
@@ -20,13 +21,13 @@ interface ReactionState {
   counts: Record<string, number>;
 }
 
-const REACTIONS: { type: ReactionKind; emoji: string; label: string }[] = [
-  { type: 'LIKE', emoji: '👍', label: 'Thích' },
-  { type: 'LOVE', emoji: '❤️', label: 'Yêu thích' },
-  { type: 'HAHA', emoji: '😆', label: 'Haha' },
-  { type: 'WOW', emoji: '😮', label: 'Wow' },
-  { type: 'SAD', emoji: '😢', label: 'Buồn' },
-  { type: 'ANGRY', emoji: '😠', label: 'Phẫn nộ' },
+const REACTIONS: { type: ReactionKind; emoji: string }[] = [
+  { type: 'LIKE', emoji: '👍' },
+  { type: 'LOVE', emoji: '❤️' },
+  { type: 'HAHA', emoji: '😆' },
+  { type: 'WOW', emoji: '😮' },
+  { type: 'SAD', emoji: '😢' },
+  { type: 'ANGRY', emoji: '😠' },
 ];
 
 const total = (counts: Record<string, number>) =>
@@ -49,6 +50,7 @@ function applyOptimistic(state: ReactionState, type: ReactionKind): ReactionStat
 }
 
 export function ReactionButton({ postId, initialCount, variant = 'button' }: Props) {
+  const t = useTranslations('social');
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -108,7 +110,7 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
         <button
           key={r.type}
           onClick={() => pick(r.type)}
-          title={r.label}
+          title={t(`reactions.${r.type}`)}
           className="text-2xl transition-transform hover:scale-125"
         >
           {r.emoji}
@@ -127,7 +129,7 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
             'group flex items-center gap-xs transition-colors',
             current ? 'text-like' : 'hover:text-like',
           )}
-          aria-label="Bày tỏ cảm xúc"
+          aria-label={t('reactions.ariaLabel')}
         >
           <span className={cn('flex items-center justify-center rounded-full p-2 transition-colors', current ? 'bg-like/10' : 'group-hover:bg-like/10')}>
             {active ? <span className="text-[18px] leading-none">{active.emoji}</span> : <Icon name="favorite" className="text-[20px]" />}
@@ -151,7 +153,7 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
         )}
       >
         {active ? <span className="text-[16px] leading-none">{active.emoji}</span> : <Icon name="favorite" className="text-[18px]" />}
-        {formatNumber(count)} {active ? active.label : 'Thích'}
+        {formatNumber(count)} {active ? t(`reactions.${active.type}`) : t('reactions.LIKE')}
       </button>
     </div>
   );

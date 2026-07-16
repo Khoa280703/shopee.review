@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -10,22 +11,23 @@ import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/cn';
 
 export function SidebarNav() {
+  const t = useTranslations('nav');
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
   const baseItems = [
-    { href: '/', icon: 'home', label: 'Trang chủ' },
-    { href: '/search', icon: 'search', label: 'Khám phá' },
+    { href: '/', icon: 'home', label: t('home') },
+    { href: '/search', icon: 'search', label: t('search') },
   ];
 
   const authItems = user
     ? [
-        { href: '/notifications', icon: 'notifications', label: 'Thông báo' },
-        { href: '/saved', icon: 'bookmark', label: 'Đã lưu' },
-        { href: `/${user.username}`, icon: 'person', label: 'Trang cá nhân' },
-        { href: '/dashboard', icon: 'monitoring', label: 'Thống kê' },
-        ...(user.isAdmin ? [{ href: '/admin', icon: 'shield', label: 'Quản trị' }] : []),
+        { href: '/notifications', icon: 'notifications', label: t('notifications') },
+        { href: '/saved', icon: 'bookmark', label: t('saved') },
+        { href: `/${user.username}`, icon: 'person', label: t('profile') },
+        { href: '/dashboard', icon: 'monitoring', label: t('dashboard') },
+        ...(user.isAdmin ? [{ href: '/admin', icon: 'shield', label: t('admin') }] : []),
       ]
     : [];
 
@@ -61,10 +63,10 @@ export function SidebarNav() {
         })}
 
         {/* Post CTA */}
-        <Tooltip label="Đăng bài" className="mt-sm">
+        <Tooltip label={t('post')} className="mt-sm">
           <button
             onClick={() => router.push(user ? '/create' : '/auth/login')}
-            aria-label="Đăng bài"
+            aria-label={t('post')}
             className={buttonClasses({ size: 'md', className: 'h-12 w-12 rounded-xl p-0' })}
           >
             <Icon name="add" className="text-[26px]" />
@@ -77,28 +79,28 @@ export function SidebarNav() {
         <div className="flex flex-col items-center gap-1 border-t border-outline-variant pt-sm">
           {user ? (
             <>
-              <Tooltip label={`@${user.username} — Trang cá nhân`}>
+              <Tooltip label={`@${user.username} — ${t('profile')}`}>
                 <Link
                   href={`/${user.username}`}
-                  aria-label={`Trang cá nhân của @${user.username}`}
+                  aria-label={`${t('profile')} (@${user.username})`}
                   className="flex h-12 w-12 items-center justify-center rounded-xl transition-all hover:bg-surface-container-high"
                 >
                   <Avatar src={user.avatarUrl} name={user.displayName} size={32} />
                 </Link>
               </Tooltip>
-              <Tooltip label="Cài đặt">
+              <Tooltip label={t('settings')}>
                 <Link
                   href="/settings"
-                  aria-label="Cài đặt"
+                  aria-label={t('settings')}
                   className="flex h-12 w-12 items-center justify-center rounded-xl text-on-surface-variant transition-all hover:bg-surface-container-high"
                 >
                   <Icon name="settings" className="text-[24px]" />
                 </Link>
               </Tooltip>
-              <Tooltip label="Đăng xuất">
+              <Tooltip label={t('logout')}>
                 <button
                   onClick={() => { void logout(); router.push('/'); }}
-                  aria-label="Đăng xuất"
+                  aria-label={t('logout')}
                   className="flex h-12 w-12 items-center justify-center rounded-xl text-on-surface-variant transition-all hover:bg-error-container"
                 >
                   <Icon name="logout" className="text-[24px]" />
@@ -106,10 +108,10 @@ export function SidebarNav() {
               </Tooltip>
             </>
           ) : (
-            <Tooltip label="Đăng nhập">
+            <Tooltip label={t('login')}>
               <Link
                 href="/auth/login"
-                aria-label="Đăng nhập"
+                aria-label={t('login')}
                 className={buttonClasses({ size: 'md', className: 'h-12 w-12 rounded-xl p-0' })}
               >
                 <Icon name="account_circle" className="text-[24px]" />

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { feedApi, postsApi, usersApi } from '@/lib/api';
 import { PostFeed, PostGrid } from './post-grid';
@@ -30,6 +31,7 @@ function fetchPage(source: Source, cursor?: number): Promise<CursorPage<Post>> {
 }
 
 export function LoadMorePosts({ initial, source, variant = 'feed' }: Props) {
+  const t = useTranslations('common');
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const {
@@ -71,7 +73,7 @@ export function LoadMorePosts({ initial, source, variant = 'feed' }: Props) {
       {variant === 'feed' ? <PostFeed posts={posts} /> : <PostGrid posts={posts} />}
       {hasNextPage && (
         <div ref={sentinelRef} className="flex justify-center py-4 text-body-sm text-on-surface-variant">
-          {isFetchingNextPage ? 'Đang tải...' : ''}
+          {isFetchingNextPage ? t('loading') : ''}
         </div>
       )}
     </div>

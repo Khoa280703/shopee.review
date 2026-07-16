@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { PostCard } from './post-card';
 import { PostFeedCard } from './post-feed-card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -5,10 +8,11 @@ import type { Post } from '@/types';
 
 // Grid layout — used on profile pages (square grid)
 export function PostGrid({ posts }: { posts: Post[] }) {
+  const t = useTranslations('post');
   if (posts.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-outline-variant py-16 text-center text-on-surface-variant">
-        Chưa có bài review nào.
+        {t('emptyList')}
       </div>
     );
   }
@@ -23,10 +27,11 @@ export function PostGrid({ posts }: { posts: Post[] }) {
 
 // Feed layout — single column social media style
 export function PostFeed({ posts }: { posts: Post[] }) {
+  const t = useTranslations('post');
   if (posts.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-outline-variant py-16 text-center text-on-surface-variant">
-        Chưa có bài review nào.
+        {t('emptyList')}
       </div>
     );
   }

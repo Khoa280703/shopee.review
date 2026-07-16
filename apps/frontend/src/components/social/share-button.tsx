@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/ui/icon';
 import { socialApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/constants';
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function ShareButton({ postId, username, initialCount }: Props) {
+  const t = useTranslations('social');
   const [count, setCount] = useState(initialCount);
 
   async function share() {
@@ -39,7 +41,7 @@ export function ShareButton({ postId, username, initialCount }: Props) {
   return (
     <button
       onClick={share}
-      aria-label="Chia sẻ"
+      aria-label={t('share.ariaLabel')}
       className="flex items-center gap-xs transition-colors hover:text-tertiary"
     >
       <Icon name="share" className="text-lg" />

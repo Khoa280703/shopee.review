@@ -3,11 +3,13 @@
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { authApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 function ResetPasswordForm() {
+  const t = useTranslations('auth');
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get('token') ?? '';
@@ -22,7 +24,7 @@ function ResetPasswordForm() {
     e.preventDefault();
     setError(null);
     if (password !== confirm) {
-      setError('Mật khẩu xác nhận không khớp');
+      setError(t('reset.mismatchError'));
       return;
     }
     setLoading(true);
@@ -31,7 +33,7 @@ function ResetPasswordForm() {
       setDone(true);
       setTimeout(() => router.push('/auth/login'), 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Đặt lại mật khẩu thất bại');
+      setError(err instanceof Error ? err.message : t('reset.error'));
     } finally {
       setLoading(false);
     }
@@ -40,7 +42,7 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <p className="text-body-md text-error">
-        Link không hợp lệ. Vui lòng yêu cầu đặt lại mật khẩu mới.
+        {t('reset.invalidToken')}
       </p>
     );
   }
@@ -48,7 +50,7 @@ function ResetPasswordForm() {
   if (done) {
     return (
       <p className="text-body-md text-on-surface-variant">
-        Đặt lại mật khẩu thành công! Đang chuyển đến trang đăng nhập...
+        {t('reset.successMessage')}
       </p>
     );
   }
@@ -59,7 +61,7 @@ function ResetPasswordForm() {
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        placeholder="Mật khẩu mới"
+        placeholder={t('reset.newPasswordPlaceholder')}
         required
         minLength={8}
       />
@@ -67,31 +69,32 @@ function ResetPasswordForm() {
         type="password"
         value={confirm}
         onChange={(e) => setConfirm(e.target.value)}
-        placeholder="Xác nhận mật khẩu"
+        placeholder={t('reset.confirmPasswordPlaceholder')}
         required
         minLength={8}
       />
       {error && <p className="text-body-sm text-error">{error}</p>}
       <Button type="submit" fullWidth size="lg" disabled={loading}>
-        {loading ? 'Đang lưu...' : 'Đặt lại mật khẩu'}
+        {loading ? t('reset.submitLoading') : t('reset.submit')}
       </Button>
     </form>
   );
 }
 
 export default function ResetPasswordPage() {
+  const t = useTranslations('auth');
   return (
     <div className="mx-auto w-full max-w-md px-4 py-10">
       <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 shadow-card">
         <h1 className="mb-6 font-display-lg-mobile text-display-lg-mobile font-bold text-on-surface">
-          Đặt lại mật khẩu
+          {t('reset.title')}
         </h1>
-        <Suspense fallback={<p className="text-body-md text-on-surface-variant">Đang tải...</p>}>
+        <Suspense fallback={<p className="text-body-md text-on-surface-variant">{t('common.loadingEllipsis')}</p>}>
           <ResetPasswordForm />
         </Suspense>
         <p className="mt-6 text-center text-body-sm text-on-surface-variant">
           <Link href="/auth/login" className="font-semibold text-primary underline underline-offset-2">
-            Quay lại đăng nhập
+            {t('common.backToLogin')}
           </Link>
         </p>
       </div>

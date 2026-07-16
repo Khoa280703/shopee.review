@@ -1,19 +1,20 @@
 'use client';
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/cn';
 
 export type ProfileTab = 'posts' | 'products';
 
-const TABS: { id: ProfileTab; label: string }[] = [
-  { id: 'posts', label: 'Bài đăng' },
-  { id: 'products', label: 'Sản phẩm' },
-];
-
 export function ProfileTabs({ active }: { active: ProfileTab }) {
+  const t = useTranslations('profile');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const TABS: { id: ProfileTab; label: string }[] = [
+    { id: 'posts', label: t('tabPosts') },
+    { id: 'products', label: t('tabProducts') },
+  ];
 
   function goTab(tab: ProfileTab) {
     const params = new URLSearchParams(searchParams.toString());

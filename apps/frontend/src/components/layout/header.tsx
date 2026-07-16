@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/icon-button';
@@ -11,6 +12,8 @@ import { SITE_NAME } from '@/lib/constants';
 
 // Mobile/tablet header only — hidden on desktop (lg uses SidebarNav instead)
 export function Header() {
+  const common = useTranslations('common');
+  const nav = useTranslations('nav');
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -25,7 +28,7 @@ export function Header() {
         <div className="flex items-center gap-1">
           <IconButton
             icon="search"
-            label="Tìm kiếm"
+            label={common('search')}
             iconClassName="text-[22px]"
             onClick={() => router.push('/search')}
           />
@@ -33,7 +36,7 @@ export function Header() {
             <Link
               href="/notifications"
               className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high"
-              aria-label="Thông báo"
+              aria-label={nav('notifications')}
             >
               <Icon name="notifications" className="text-[22px]" />
             </Link>
@@ -44,7 +47,7 @@ export function Header() {
             </Link>
           ) : !loading ? (
             <Link href="/auth/login" className={buttonClasses({ size: 'sm', className: 'ml-2' })}>
-              Đăng nhập
+              {nav('login')}
             </Link>
           ) : null}
         </div>

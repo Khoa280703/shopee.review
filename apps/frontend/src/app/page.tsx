@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { categoriesApi, postsApi } from '@/lib/api';
 import { CategoryPills } from '@/components/ui/category-pills';
 import { CreatePostPrompt } from '@/components/post/create-post-prompt';
@@ -14,6 +15,7 @@ export default async function HomePage({
 }) {
   const { tab } = await searchParams;
   const defaultTab = tab === 'following' ? 'following' : 'forYou';
+  const te = await getTranslations('errors');
   let categories: Category[] = [];
   let initial: CursorPage<Post> = { data: [], nextCursor: null };
   let trending: Post[] = [];
@@ -45,7 +47,7 @@ export default async function HomePage({
         </div>
         {loadFailed ? (
           <div className="rounded-xl border border-dashed border-outline-variant py-16 text-center text-on-surface-variant">
-            Không tải được bảng tin. Vui lòng thử lại sau.
+            {te('feedLoadFailed')}
           </div>
         ) : (
           <HomeFeedTabs exploreInitial={initial} defaultTab={defaultTab} />
