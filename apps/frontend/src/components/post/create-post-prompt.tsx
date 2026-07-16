@@ -17,7 +17,7 @@ export function CreatePostPrompt() {
   return (
     <div className="mb-md rounded-xl border border-outline-variant bg-surface-container-lowest p-md shadow-card">
       <div className="flex gap-md">
-        <Avatar src={user?.avatarUrl} name={user?.displayName ?? '?'} size={40} />
+        <Avatar src={user?.avatarUrl} name={user?.displayName ?? ''} size={40} />
         <button
           onClick={go}
           className="flex-1 rounded-full bg-surface-container px-4 text-left font-body-md text-body-md text-on-surface-variant transition-colors hover:bg-surface-container-high"

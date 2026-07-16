@@ -113,7 +113,7 @@ export function SidebarNav() {
                 aria-label="Đăng nhập"
                 className={buttonClasses({ size: 'md', className: 'h-12 w-12 rounded-xl p-0' })}
               >
-                <Icon name="login" className="text-[24px]" />
+                <Icon name="account_circle" className="text-[24px]" />
               </Link>
             </Tooltip>
           )}

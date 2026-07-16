@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/cn';
 import { resolveAssetUrl } from '@/lib/constants';
+import { Icon } from '@/components/ui/icon';
 
 interface AvatarProps {
   src?: string | null;
@@ -14,9 +15,11 @@ interface AvatarProps {
 
 export function Avatar({ src, name, size = 40, className }: AvatarProps) {
   const url = resolveAssetUrl(src);
-  const initial = name?.trim()?.charAt(0)?.toUpperCase() || '?';
-  // Fall back to the initial when there's no image OR the image fails to load
-  // (broken URL, or an expired Facebook lookaside picture URL).
+  // Empty/absent name (e.g. an anonymous, not-logged-in viewer) → no initial,
+  // so we render a neutral person silhouette instead of a "?" placeholder.
+  const initial = name?.trim()?.charAt(0)?.toUpperCase() ?? '';
+  // Fall back to the initial (or the silhouette) when there's no image OR the
+  // image fails to load (broken URL, or an expired Facebook lookaside picture).
   const [failed, setFailed] = useState(false);
 
   return (
@@ -36,8 +39,10 @@ export function Avatar({ src, name, size = 40, className }: AvatarProps) {
           className="h-full w-full object-cover"
           onError={() => setFailed(true)}
         />
-      ) : (
+      ) : initial ? (
         initial
+      ) : (
+        <Icon name="person" fill style={{ fontSize: size * 0.6 }} />
       )}
     </span>
   );

@@ -31,7 +31,7 @@ export function PostFeed({ posts }: { posts: Post[] }) {
     );
   }
   return (
-    <div className="flex flex-col divide-y divide-outline-variant border-x border-outline-variant sm:rounded-xl sm:border">
+    <div className="flex flex-col divide-y divide-outline-variant border-x border-outline-variant sm:overflow-hidden sm:rounded-xl sm:border">
       {posts.map((post) => (
         <PostFeedCard key={post.id} post={post} />
       ))}
@@ -57,7 +57,7 @@ export function PostGridSkeleton({ count = 6 }: { count?: number }) {
 
 export function PostFeedSkeleton({ count = 3 }: { count?: number }) {
   return (
-    <div className="flex flex-col divide-y divide-outline-variant border-x border-outline-variant sm:rounded-xl sm:border">
+    <div className="flex flex-col divide-y divide-outline-variant border-x border-outline-variant sm:overflow-hidden sm:rounded-xl sm:border">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="bg-surface-container-lowest p-md">
           <div className="flex items-center gap-3">
