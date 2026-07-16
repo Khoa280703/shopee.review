@@ -13,7 +13,10 @@ type Source =
   | { type: 'feed' };
 
 interface Props {
-  initial: CursorPage<Post>;
+  // SSR-seeded first page. Omit for client-only sources (e.g. the personalized
+  // feed, which can't be server-rendered without the auth cookie) so the query
+  // actually fetches on mount instead of treating an empty page as fresh data.
+  initial?: CursorPage<Post>;
   source: Source;
   variant?: 'feed' | 'grid'; // feed = single column social style, grid = profile grid
 }
@@ -38,12 +41,15 @@ export function LoadMorePosts({ initial, source, variant = 'feed' }: Props) {
     queryKey: ['posts', source],
     queryFn: ({ pageParam }) => fetchPage(source, pageParam),
     initialPageParam: undefined as number | undefined,
-    // Hydrate page 1 from the server-rendered data (no double fetch / flash).
-    initialData: { pages: [initial], pageParams: [undefined as number | undefined] },
+    // Hydrate page 1 from the server-rendered data (no double fetch / flash)
+    // when provided; otherwise fetch on mount.
+    initialData: initial
+      ? { pages: [initial], pageParams: [undefined as number | undefined] }
+      : undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 
-  const posts = data.pages.flatMap((p) => p.data);
+  const posts = data?.pages.flatMap((p) => p.data) ?? [];
 
   useEffect(() => {
     const node = sentinelRef.current;

@@ -22,7 +22,6 @@ export function SidebarNav() {
   const authItems = user
     ? [
         { href: '/notifications', icon: 'notifications', label: 'Thông báo' },
-        { href: '/feed', icon: 'rss_feed', label: 'Bảng tin' },
         { href: '/saved', icon: 'bookmark', label: 'Đã lưu' },
         { href: `/${user.username}`, icon: 'person', label: 'Trang cá nhân' },
         { href: '/dashboard', icon: 'monitoring', label: 'Thống kê' },

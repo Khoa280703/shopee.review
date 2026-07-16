@@ -1,13 +1,19 @@
 import { categoriesApi, postsApi } from '@/lib/api';
 import { CategoryPills } from '@/components/ui/category-pills';
 import { CreatePostPrompt } from '@/components/post/create-post-prompt';
-import { LoadMorePosts } from '@/components/post/load-more-posts';
+import { HomeFeedTabs } from '@/components/post/home-feed-tabs';
 import { RightSidebar } from '@/components/layout/right-sidebar';
 import type { Category, CursorPage, Post } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  const defaultTab = tab === 'following' ? 'following' : 'forYou';
   let categories: Category[] = [];
   let initial: CursorPage<Post> = { data: [], nextCursor: null };
   let trending: Post[] = [];
@@ -42,7 +48,7 @@ export default async function HomePage() {
             Không tải được bảng tin. Vui lòng thử lại sau.
           </div>
         ) : (
-          <LoadMorePosts initial={initial} source={{ type: 'explore' }} variant="feed" />
+          <HomeFeedTabs exploreInitial={initial} defaultTab={defaultTab} />
         )}
       </section>
       <RightSidebar trending={trending} />
