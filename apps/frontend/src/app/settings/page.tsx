@@ -11,7 +11,10 @@ import { buttonClasses } from '@/components/ui/button-classes';
 import { authApi, moderationApi, uploadImage, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
+import { cn } from '@/lib/cn';
 import type { AuthSession } from '@/types';
+
+type SettingsTab = 'profile' | 'appearance' | 'security' | 'privacy' | 'account';
 
 export default function SettingsPage() {
   const t = useTranslations('settings');
@@ -19,6 +22,7 @@ export default function SettingsPage() {
   const locale = useLocale();
   const { user, loading, refresh, setUser } = useAuth();
   const router = useRouter();
+  const [tab, setTab] = useState<SettingsTab>('profile');
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -118,14 +122,40 @@ export default function SettingsPage() {
     return <div className="py-16 text-center text-on-surface-variant">{common('loading')}</div>;
   }
 
+  const tabs: { id: SettingsTab; label: string }[] = [
+    { id: 'profile', label: t('tabProfile') },
+    { id: 'appearance', label: t('appearance') },
+    { id: 'security', label: t('tabSecurity') },
+    { id: 'privacy', label: t('tabPrivacy') },
+    { id: 'account', label: t('tabAccount') },
+  ];
+
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-lg">
       <h1 className="mb-6 font-display-lg-mobile text-display-lg-mobile font-bold text-on-surface">{t('title')}</h1>
 
-      <div className="mb-6">
-        <AppearanceSettings />
+      {/* Tab bar (scrolls horizontally on mobile) */}
+      <div className="no-scrollbar mb-6 flex gap-1 overflow-x-auto border-b border-outline-variant">
+        {tabs.map((tb) => (
+          <button
+            key={tb.id}
+            type="button"
+            onClick={() => setTab(tb.id)}
+            className={cn(
+              'whitespace-nowrap border-b-2 px-4 py-2 text-body-sm font-semibold transition-colors',
+              tab === tb.id
+                ? 'border-primary text-on-surface'
+                : 'border-transparent text-on-surface-variant hover:text-on-surface',
+            )}
+          >
+            {tb.label}
+          </button>
+        ))}
       </div>
 
+      {tab === 'appearance' && <AppearanceSettings />}
+
+      {tab === 'profile' && (
       <form onSubmit={save} className="space-y-5">
         <div className="flex items-center gap-4">
           <Avatar src={avatarUrl} name={displayName || user.username} size={64} />
@@ -161,8 +191,10 @@ export default function SettingsPage() {
           {saving ? t('saving') : t('saveChanges')}
         </Button>
       </form>
+      )}
 
-      <form onSubmit={changePassword} className="mt-10 space-y-4 rounded-xl border border-outline-variant p-4">
+      {tab === 'security' && (
+      <form onSubmit={changePassword} className="space-y-4 rounded-xl border border-outline-variant p-4">
         <h2 className="font-title-md text-title-md font-semibold text-on-surface">{t('changePassword')}</h2>
         <div>
           <label className="mb-1 block text-body-sm font-medium text-on-surface">{t('currentPassword')}</label>
@@ -188,8 +220,10 @@ export default function SettingsPage() {
           {changingPw ? t('changingPassword') : t('changePassword')}
         </Button>
       </form>
+      )}
 
-      <div className="mt-10 rounded-xl border border-outline-variant p-4">
+      {tab === 'privacy' && (
+      <div className="rounded-xl border border-outline-variant p-4">
         <h2 className="font-title-md text-title-md font-semibold text-on-surface">{t('blockedUsers')}</h2>
         {blocked.length === 0 ? (
           <p className="mt-2 text-body-sm text-on-surface-variant">{t('noBlockedUsers')}</p>
@@ -211,8 +245,10 @@ export default function SettingsPage() {
           </ul>
         )}
       </div>
+      )}
 
-      <div className="mt-10 rounded-xl border border-outline-variant p-4">
+      {tab === 'security' && (
+      <div className="mt-4 rounded-xl border border-outline-variant p-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-title-md text-title-md font-semibold text-on-surface">{t('sessions')}</h2>
           {sessions.filter((s) => !s.current).length > 0 && (
@@ -250,8 +286,10 @@ export default function SettingsPage() {
           </ul>
         )}
       </div>
+      )}
 
-      <div className="mt-10 rounded-xl border border-error/40 bg-error/5 p-4">
+      {tab === 'account' && (
+      <div className="rounded-xl border border-error/40 bg-error/5 p-4">
         <h2 className="font-title-md text-title-md font-semibold text-error">{t('dangerZone')}</h2>
         <p className="mt-1 text-body-sm text-on-surface-variant">
           {t('deleteAccountWarning')}
@@ -286,6 +324,7 @@ export default function SettingsPage() {
           </button>
         )}
       </div>
+      )}
     </div>
   );
 }
