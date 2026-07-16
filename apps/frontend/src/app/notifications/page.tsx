@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
-import { useNotifications } from '@/hooks/use-notifications';
+import { useNotificationsContext } from '@/components/providers/notifications-provider';
 import { TimeAgo } from '@/components/ui/time-ago';
 import { cn } from '@/lib/cn';
 import type { AppNotification, NotificationType } from '@/types';
@@ -30,7 +30,7 @@ function meta(type: NotificationType): { icon: string; bg: string; fg: string } 
 export default function NotificationsPage() {
   const t = useTranslations('notifications');
   const { notifications, unreadCount, markAllRead, loadMore, hasMore, loadingMore } =
-    useNotifications();
+    useNotificationsContext();
   const [tab, setTab] = useState<'all' | NotificationType>('all');
 
   // unreadCount is 0 on first render (the hook fetches it async), so a mount-only
@@ -84,7 +84,7 @@ export default function NotificationsPage() {
               return (
                 <Link
                   key={n.id}
-                  href={`/${n.actor.username}`}
+                  href={n.post ? `/${n.actor.username}/${n.post.id}` : `/${n.actor.username}`}
                   className="group flex items-start gap-md border-b border-surface-container-high bg-surface p-md transition-colors hover:bg-surface-container-lowest sm:rounded-xl sm:border sm:shadow-sm sm:hover:shadow-md"
                 >
                   <div

@@ -9,6 +9,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { buttonClasses } from '@/components/ui/button-classes';
 import { useAuth } from '@/lib/auth-context';
 import { SITE_NAME } from '@/lib/constants';
+import { UnreadBadge } from './unread-badge';
 
 // Mobile/tablet header only — hidden on desktop (lg uses SidebarNav instead)
 export function Header() {
@@ -33,13 +34,30 @@ export function Header() {
             onClick={() => router.push('/search')}
           />
           {!loading && user && (
-            <Link
-              href="/notifications"
-              className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high"
-              aria-label={nav('notifications')}
-            >
-              <Icon name="notifications" className="text-[22px]" />
-            </Link>
+            <>
+              <Link
+                href="/saved"
+                className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high"
+                aria-label={nav('saved')}
+              >
+                <Icon name="bookmark" className="text-[22px]" />
+              </Link>
+              <Link
+                href="/dashboard"
+                className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high"
+                aria-label={nav('dashboard')}
+              >
+                <Icon name="monitoring" className="text-[22px]" />
+              </Link>
+              <Link
+                href="/notifications"
+                className="relative rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high"
+                aria-label={nav('notifications')}
+              >
+                <Icon name="notifications" className="text-[22px]" />
+                <UnreadBadge />
+              </Link>
+            </>
           )}
           {!loading && user ? (
             <Link href={`/${user.username}`} className="ml-1 rounded-full">

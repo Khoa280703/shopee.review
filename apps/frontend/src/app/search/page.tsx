@@ -111,6 +111,10 @@ function SearchInner() {
           )}
         </>
       )}
+
+      {!initialQ && (
+        <p className="py-16 text-center text-body-sm text-on-surface-variant">{t('emptyHint')}</p>
+      )}
     </div>
   );
 }

@@ -99,6 +99,11 @@ export function PostFeedCard({ post }: { post: Post }) {
                     sizes="(max-width:700px) 50vw, 350px"
                     className="object-cover"
                   />
+                  {i === 2 && images.length > 3 ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 font-headline-md text-body-md font-semibold text-white">
+                      {t('moreImages', { count: images.length - 3 })}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

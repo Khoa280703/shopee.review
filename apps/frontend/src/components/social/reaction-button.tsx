@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -55,7 +55,31 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
   const router = useRouter();
   const queryClient = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
   const key = ['reactionStatus', postId];
+
+  // Mobile: long-press opens the picker (mirrors desktop hover) since there's
+  // no hover state on touch. touchmove/touchend before the timer fires cancels
+  // it so a normal tap still falls through to onTap's single-reaction toggle.
+  // longPressFired suppresses the synthetic click some mobile browsers fire on
+  // touchend so opening the picker doesn't also toggle LIKE underneath it.
+  function cancelLongPress() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
+
+  function startLongPress() {
+    if (!user) return;
+    cancelLongPress();
+    longPressFired.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      setPickerOpen(true);
+    }, 400);
+  }
 
   const { data } = useQuery<ReactionState>({
     queryKey: key,
@@ -99,7 +123,13 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
   }
 
   // Single tap = toggle LIKE (muscle memory); the picker offers the other types.
-  const onTap = () => pick(current ? current : 'LIKE');
+  const onTap = () => {
+    if (longPressFired.current) {
+      longPressFired.current = false;
+      return;
+    }
+    pick(current ? current : 'LIKE');
+  };
 
   const picker = pickerOpen && (
     <div
@@ -111,7 +141,7 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
           key={r.type}
           onClick={() => pick(r.type)}
           title={t(`reactions.${r.type}`)}
-          className="text-2xl transition-transform hover:scale-125"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 text-2xl transition-transform hover:scale-125"
         >
           {r.emoji}
         </button>
@@ -121,7 +151,13 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
 
   if (variant === 'icon') {
     return (
-      <div className="relative" onMouseEnter={() => user && setPickerOpen(true)}>
+      <div
+        className="relative"
+        onMouseEnter={() => user && setPickerOpen(true)}
+        onTouchStart={startLongPress}
+        onTouchMove={cancelLongPress}
+        onTouchEnd={cancelLongPress}
+      >
         {picker}
         <button
           onClick={onTap}
@@ -141,7 +177,13 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
   }
 
   return (
-    <div className="relative inline-block" onMouseEnter={() => user && setPickerOpen(true)}>
+    <div
+      className="relative inline-block"
+      onMouseEnter={() => user && setPickerOpen(true)}
+      onTouchStart={startLongPress}
+      onTouchMove={cancelLongPress}
+      onTouchEnd={cancelLongPress}
+    >
       {picker}
       <button
         onClick={onTap}

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/ui/icon';
+import { useToast } from '@/components/providers/toast-provider';
 import { socialApi } from '@/lib/api';
 import { SITE_URL } from '@/lib/constants';
 import { formatNumber } from '@/lib/format';
@@ -15,6 +16,7 @@ interface Props {
 
 export function ShareButton({ postId, username, initialCount }: Props) {
   const t = useTranslations('social');
+  const toast = useToast();
   const [count, setCount] = useState(initialCount);
 
   async function share() {
@@ -25,9 +27,13 @@ export function ShareButton({ postId, username, initialCount }: Props) {
         await navigator.share({ url });
       } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(url);
+        toast(t('share.copied'), 'success');
       }
     } catch {
-      // user cancelled share sheet — do not count
+      // user cancelled share sheet, or clipboard write failed
+      if (typeof navigator !== 'undefined' && !navigator.share && navigator.clipboard) {
+        toast(t('share.failed'), 'error');
+      }
       return;
     }
     try {

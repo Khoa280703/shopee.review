@@ -24,6 +24,7 @@ export function HomeFeedTabs({
   defaultTab?: Tab;
 }) {
   const t = useTranslations('nav');
+  const home = useTranslations('home');
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>(defaultTab);
 
@@ -49,7 +50,19 @@ export function HomeFeedTabs({
       {tab === 'forYou' ? (
         <LoadMorePosts initial={exploreInitial} source={{ type: 'explore' }} variant="feed" />
       ) : user ? (
-        <LoadMorePosts source={{ type: 'feed' }} variant="feed" />
+        <>
+          <LoadMorePosts source={{ type: 'feed' }} variant="feed" />
+          <div className="mt-md rounded-xl border border-dashed border-outline-variant py-10 text-center text-on-surface-variant">
+            <p className="mb-3">{home('followingEmptyTitle')}</p>
+            <button
+              type="button"
+              onClick={() => setTab('forYou')}
+              className="inline-flex h-9 items-center rounded-full bg-primary px-5 text-body-sm font-bold text-on-primary"
+            >
+              {home('exploreCta')}
+            </button>
+          </div>
+        </>
       ) : (
         <div className="rounded-xl border border-dashed border-outline-variant py-16 text-center text-on-surface-variant">
           <p className="mb-3">{t('following')}</p>

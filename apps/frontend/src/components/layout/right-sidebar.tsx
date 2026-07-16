@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
+import { FollowButton } from '@/components/social/follow-button';
 import { Icon } from '@/components/ui/icon';
 import { resolveAssetUrl } from '@/lib/constants';
 import { formatNumber } from '@/lib/format';
@@ -107,12 +108,7 @@ export function RightSidebar({ trending = [], className }: Props) {
                     <p className="truncate font-body-sm text-[12px] text-on-surface-variant">@{p.user.username}</p>
                   </div>
                 </Link>
-                <Link
-                  href={`/${p.user.username}`}
-                  className="shrink-0 rounded-full bg-inverse-surface px-4 py-1 font-headline-md text-[13px] font-bold text-inverse-on-surface transition-colors hover:opacity-90"
-                >
-                  {common('follow')}
-                </Link>
+                <FollowButton username={p.user.username} className="h-auto shrink-0 px-4 py-1 text-[13px]" />
               </div>
             ))}
           </div>

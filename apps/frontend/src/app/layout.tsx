@@ -5,6 +5,7 @@ import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
 import { ThemeProvider } from '@/components/providers/theme-provider';
 import { ToastProvider } from '@/components/providers/toast-provider';
+import { NotificationsProvider } from '@/components/providers/notifications-provider';
 import { Header } from '@/components/layout/header';
 import { MobileNav } from '@/components/layout/mobile-nav';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
@@ -49,14 +50,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <QueryProvider>
               <AuthProvider>
                 <SocketProvider>
-                  {/* Top header — only on mobile/tablet */}
-                  <Header />
-                  {/* Desktop left sidebar */}
-                  <SidebarNav />
-                  {/* Main content — shifted right on desktop to clear the fixed sidebar */}
-                  <main className="min-h-screen pb-20 lg:ml-[72px] lg:pb-10">{children}</main>
-                  {/* Bottom nav — only on mobile */}
-                  <MobileNav />
+                  <NotificationsProvider>
+                    {/* Top header — only on mobile/tablet */}
+                    <Header />
+                    {/* Desktop left sidebar */}
+                    <SidebarNav />
+                    {/* Main content — shifted right on desktop to clear the fixed sidebar */}
+                    <main className="min-h-screen pb-20 lg:ml-[72px] lg:pb-10">{children}</main>
+                    {/* Bottom nav — only on mobile */}
+                    <MobileNav />
+                  </NotificationsProvider>
                 </SocketProvider>
               </AuthProvider>
             </QueryProvider>

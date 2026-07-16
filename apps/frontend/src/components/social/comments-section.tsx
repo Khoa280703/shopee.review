@@ -135,12 +135,14 @@ export function CommentsSection({ postId }: { postId: number }) {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    setLoadError(false);
     socialApi
       .comments(postId)
       .then((page) => setComments(page.data))
-      .catch(() => undefined)
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [postId]);
 
@@ -235,6 +237,8 @@ export function CommentsSection({ postId }: { postId: number }) {
 
       {loading ? (
         <p className="text-body-sm text-on-surface-variant">{t('comments.loading')}</p>
+      ) : loadError ? (
+        <p className="text-body-sm text-error">{t('comments.loadError')}</p>
       ) : comments.length === 0 ? (
         <p className="text-body-sm text-on-surface-variant">{t('comments.empty')}</p>
       ) : (

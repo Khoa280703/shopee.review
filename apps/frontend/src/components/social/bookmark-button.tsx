@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/ui/icon';
+import { useToast } from '@/components/providers/toast-provider';
 import { socialApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/cn';
@@ -15,6 +16,7 @@ interface Props {
 
 export function BookmarkButton({ postId, initialBookmarked = false }: Props) {
   const t = useTranslations('social');
+  const toast = useToast();
   const { user } = useAuth();
   const router = useRouter();
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
@@ -33,6 +35,7 @@ export function BookmarkButton({ postId, initialBookmarked = false }: Props) {
       setBookmarked(res.bookmarked);
     } catch {
       setBookmarked((b) => !b); // revert
+      toast(t('bookmark.error'), 'error');
     } finally {
       setPending(false);
     }

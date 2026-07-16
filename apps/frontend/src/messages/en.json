@@ -148,6 +148,10 @@
     "notFoundMessage": "The page you're looking for doesn't exist.",
     "tryAgainLater": "Please try again later."
   },
+  "home": {
+    "exploreCta": "Explore & find people to follow",
+    "followingEmptyTitle": "No new posts from people you follow yet."
+  },
   "moderation": {
     "block": "Block",
     "reasons": {
@@ -214,9 +218,12 @@
     "title": "Notifications"
   },
   "post": {
+    "affiliateDisclosure": "This post contains affiliate links — shopee.review may earn a commission if you buy through them, at no extra cost to you.",
     "buyNow": "Buy now",
+    "close": "Close",
     "defaultTitle": "Review post",
     "emptyList": "No reviews yet.",
+    "moreImages": "+{count} photos",
     "noImage": "No image",
     "relatedTitle": "Related products",
     "report": "Report",
@@ -240,6 +247,7 @@
     "loadFailed": "Couldn't load saved posts. Please try again."
   },
   "search": {
+    "emptyHint": "Enter a keyword to search for reviews and users.",
     "noUsers": "No users found.",
     "placeholder": "Search reviews, users...",
     "postsTab": "Posts ({count})",
@@ -292,7 +300,8 @@
   },
   "social": {
     "bookmark": {
-      "ariaLabel": "Save post"
+      "ariaLabel": "Save post",
+      "error": "Couldn't save post. Please try again."
     },
     "comments": {
       "delete": "Delete",
@@ -300,6 +309,7 @@
       "errorAdd": "Couldn't post comment. Please try again.",
       "errorDelete": "Couldn't delete comment. Please try again.",
       "errorReply": "Couldn't post reply. Please try again.",
+      "loadError": "Couldn't load comments. Please try again.",
       "loading": "Loading comments...",
       "loadingMore": "Loading...",
       "loginToComment": "Log in to comment",
@@ -324,7 +334,9 @@
       "ariaLabel": "React"
     },
     "share": {
-      "ariaLabel": "Share"
+      "ariaLabel": "Share",
+      "copied": "Link copied!",
+      "failed": "Couldn't copy the link. Please try again."
     }
   }
 }

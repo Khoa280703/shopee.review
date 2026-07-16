@@ -148,6 +148,10 @@
     "notFoundMessage": "Không tìm thấy trang bạn yêu cầu.",
     "tryAgainLater": "Vui lòng thử lại sau."
   },
+  "home": {
+    "exploreCta": "Khám phá & tìm người để theo dõi",
+    "followingEmptyTitle": "Chưa có bài viết mới từ những người bạn theo dõi."
+  },
   "moderation": {
     "block": "Chặn",
     "reasons": {
@@ -214,9 +218,12 @@
     "title": "Thông báo"
   },
   "post": {
+    "affiliateDisclosure": "Bài viết chứa link tiếp thị — shopee.review có thể nhận hoa hồng khi bạn mua qua link, không ảnh hưởng giá bạn trả.",
     "buyNow": "Mua ngay",
+    "close": "Đóng",
     "defaultTitle": "Bài review",
     "emptyList": "Chưa có bài review nào.",
+    "moreImages": "+{count} ảnh",
     "noImage": "Không có ảnh",
     "relatedTitle": "Sản phẩm liên quan",
     "report": "Báo cáo",
@@ -240,6 +247,7 @@
     "loadFailed": "Không tải được danh sách đã lưu. Vui lòng thử lại."
   },
   "search": {
+    "emptyHint": "Nhập từ khoá để tìm bài review và người dùng.",
     "noUsers": "Không tìm thấy người dùng.",
     "placeholder": "Tìm bài review, người dùng...",
     "postsTab": "Bài viết ({count})",
@@ -292,7 +300,8 @@
   },
   "social": {
     "bookmark": {
-      "ariaLabel": "Lưu bài viết"
+      "ariaLabel": "Lưu bài viết",
+      "error": "Không lưu được bài viết. Vui lòng thử lại."
     },
     "comments": {
       "delete": "Xóa",
@@ -300,6 +309,7 @@
       "errorAdd": "Không gửi được bình luận. Vui lòng thử lại.",
       "errorDelete": "Không xoá được bình luận. Vui lòng thử lại.",
       "errorReply": "Không gửi được trả lời. Vui lòng thử lại.",
+      "loadError": "Không tải được bình luận. Vui lòng thử lại.",
       "loading": "Đang tải bình luận...",
       "loadingMore": "Đang tải...",
       "loginToComment": "Đăng nhập để bình luận",
@@ -324,7 +334,9 @@
       "ariaLabel": "Bày tỏ cảm xúc"
     },
     "share": {
-      "ariaLabel": "Chia sẻ"
+      "ariaLabel": "Chia sẻ",
+      "copied": "Đã sao chép liên kết!",
+      "failed": "Không sao chép được liên kết. Vui lòng thử lại."
     }
   }
 }

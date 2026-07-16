@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { useAuth } from '@/lib/auth-context';
+import { UnreadBadge } from './unread-badge';
 
 export function MobileNav() {
   const t = useTranslations('nav');
@@ -16,7 +17,7 @@ export function MobileNav() {
     { href: '/', icon: 'home', label: t('home') },
     { href: '/search', icon: 'search', label: t('search') },
     { href: '/create', icon: 'add_circle', label: t('post'), auth: true },
-    { href: '/notifications', icon: 'notifications', label: t('notifications'), auth: true },
+    { href: '/notifications', icon: 'notifications', label: t('notifications'), auth: true, badge: true },
     { href: user ? `/${user.username}` : '/auth/login', icon: 'person', label: t('profile') },
   ];
 
@@ -42,7 +43,10 @@ export function MobileNav() {
                   : 'px-3 text-on-surface-variant',
               )}
             >
-              <Icon name={item.icon} fill={active} className="text-[24px]" />
+              <span className="relative">
+                <Icon name={item.icon} fill={active} className="text-[24px]" />
+                {item.badge && <UnreadBadge />}
+              </span>
               <span className="font-label-caps text-label-caps">{item.label}</span>
             </button>
           );

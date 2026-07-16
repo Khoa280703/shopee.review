@@ -6,6 +6,7 @@ import { getTranslations } from 'next-intl/server';
 import { ApiError, postsApi } from '@/lib/api';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
+import { PostGalleryLightbox } from '@/components/post/image-carousel';
 import { CommentsSection } from '@/components/social/comments-section';
 import { ReactionButton } from '@/components/social/reaction-button';
 import { BookmarkButton } from '@/components/social/bookmark-button';
@@ -82,7 +83,7 @@ export default async function PostDetailPage({
   const related = await postsApi.trending(true).catch(() => [] as Post[]);
   const images = (post.images ?? []).map(resolveAssetUrl).filter(Boolean) as string[];
   const meta = post.productMeta ?? {};
-  const jsonLd = {
+  const jsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Review',
     itemReviewed: { '@type': 'Product', name: post.title },
@@ -90,6 +91,9 @@ export default async function PostDetailPage({
     datePublished: post.createdAt,
     publisher: { '@type': 'Organization', name: SITE_NAME },
   };
+  if (meta.rating != null) {
+    jsonLd.reviewRating = { '@type': 'Rating', ratingValue: meta.rating, bestRating: 5 };
+  }
   // Escape `<` so user-controlled fields (e.g. post.title) can't break out of
   // the <script> tag via `</script>`. \u003c is valid inside JSON string values.
   const jsonLdSafe = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
@@ -115,32 +119,8 @@ export default async function PostDetailPage({
             <FollowButton username={post.user.username} />
           </header>
 
-          {/* Image gallery */}
-          {images.length > 0 && (
-            <div className="grid grid-cols-2 gap-sm overflow-hidden rounded-xl">
-              <div className="relative col-span-2 h-80 bg-surface-container-low">
-                <Image
-                  src={images[0]}
-                  alt={post.title}
-                  fill
-                  priority
-                  sizes="(max-width:700px) 100vw, 700px"
-                  className="object-cover"
-                />
-              </div>
-              {images.slice(1, 3).map((src, i) => (
-                <div key={i} className="relative h-40 bg-surface-container-low">
-                  <Image
-                    src={src}
-                    alt={post.title}
-                    fill
-                    sizes="(max-width:700px) 50vw, 350px"
-                    className="object-cover"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Image gallery (clickable, opens full-screen lightbox) */}
+          {images.length > 0 && <PostGalleryLightbox images={images} alt={post.title} />}
 
           <h1 className="font-display-lg-mobile text-display-lg-mobile text-on-surface">{post.title}</h1>
 
@@ -165,9 +145,21 @@ export default async function PostDetailPage({
             <div className="flex-1 text-center sm:text-left">
               <h3 className="font-headline-md text-body-md text-on-surface">{post.title}</h3>
               {meta.rating != null && (
-                <div className="mt-xs flex items-center justify-center gap-xs sm:justify-start">
-                  <Icon name="star" fill className="text-sm text-primary" />
-                  <span className="font-body-sm text-body-sm text-on-surface-variant">
+                <div className="mt-xs flex items-center justify-center gap-0.5 sm:justify-start">
+                  {Array.from({ length: 5 }, (_, i) => {
+                    const remaining = Number(meta.rating) - i;
+                    const iconName = remaining >= 0.5 && remaining < 1 ? 'star_half' : 'star';
+                    const filled = remaining >= 0.5;
+                    return (
+                      <Icon
+                        key={i}
+                        name={iconName}
+                        fill={filled}
+                        className={filled ? 'text-sm text-primary' : 'text-sm text-outline-variant'}
+                      />
+                    );
+                  })}
+                  <span className="ml-1 font-body-sm text-body-sm text-on-surface-variant">
                     ({Number(meta.rating).toFixed(1)})
                   </span>
                 </div>
@@ -199,6 +191,9 @@ export default async function PostDetailPage({
               {t('buyNow')}
             </a>
           </div>
+          <p className="-mt-sm font-body-sm text-label-caps text-on-surface-variant">
+            {t('affiliateDisclosure')}
+          </p>
 
           {/* Interaction bar */}
           <div className="mt-sm flex items-center gap-lg border-t border-outline-variant pt-md text-on-surface-variant">

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
 import { Tooltip } from '@/components/ui/tooltip';
+import { UnreadBadge } from './unread-badge';
 import { buttonClasses } from '@/components/ui/button-classes';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/cn';
@@ -56,7 +57,10 @@ export function SidebarNav() {
                   active ? 'text-primary' : 'text-on-surface-variant',
                 )}
               >
-                <Icon name={item.icon} fill={active} className="text-[26px]" />
+                <span className="relative">
+                  <Icon name={item.icon} fill={active} className="text-[26px]" />
+                  {item.href === '/notifications' && <UnreadBadge />}
+                </span>
               </Link>
             </Tooltip>
           );
