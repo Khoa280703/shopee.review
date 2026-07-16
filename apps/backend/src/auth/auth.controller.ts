@@ -30,11 +30,16 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { FacebookAuthGuard } from './guards/facebook-auth.guard';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { verifyOAuthState } from '../common/oauth-state';
+import { resolveCookieSecure } from '../common/cookie-secure';
 import type { FacebookProfile } from './strategies/facebook.strategy';
 import type { SessionMeta } from './auth.service';
 
 function sessionMeta(req: Request): SessionMeta {
-  return { userAgent: req.headers['user-agent'] ?? null, ip: req.ip ?? null };
+  return {
+    userAgent: req.headers['user-agent'] ?? null,
+    ip: req.ip ?? null,
+    secure: resolveCookieSecure(req),
+  };
 }
 import type { GoogleProfile } from './strategies/google.strategy';
 
@@ -77,9 +82,10 @@ export class AuthController {
   @UseGuards(OptionalJwtAuthGuard)
   async logout(
     @CurrentUser() user: AuthUser | undefined,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ success: boolean }> {
-    await this.authService.logout(res, user?.sessionId);
+    await this.authService.logout(res, user?.sessionId, sessionMeta(req));
     return { success: true };
   }
 

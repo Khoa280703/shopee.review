@@ -1,6 +1,9 @@
 # Observability stack — run alongside the main stack:
 #   docker compose -f docker-compose.yml -f monitoring/docker-compose.monitoring.yml up -d
-# Grafana: http://localhost:3001 (admin / ${GRAFANA_PASSWORD:-admin})
+# All ports bind to 127.0.0.1 only — reach them via an SSH tunnel, never the
+# public internet (these UIs/APIs have weak or no auth of their own). e.g.:
+#   ssh -L 3001:127.0.0.1:3001 user@vps   then open http://localhost:3001
+# Grafana admin password is required (no insecure default).
 services:
   prometheus:
     image: prom/prometheus:v2.55.0
@@ -13,7 +16,7 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=15d
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
 
   loki:
     image: grafana/loki:3.2.0
@@ -22,8 +25,10 @@ services:
     volumes:
       - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
+    # Loki has no auth and an open push API; keep it off public interfaces.
+    # Promtail reaches it over the compose network (loki:3100), not this port.
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
 
   promtail:
     image: grafana/promtail:3.2.0
@@ -40,13 +45,13 @@ services:
     image: grafana/grafana:11.3.0
     restart: unless-stopped
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD is required (set a strong password in .env)}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     depends_on:
       - prometheus
       - loki

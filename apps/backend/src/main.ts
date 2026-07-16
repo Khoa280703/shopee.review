@@ -68,6 +68,12 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(new PrismaExceptionFilter());
+
+  // On SIGTERM/SIGINT (deploy, container stop) run onModuleDestroy across the
+  // app so Prisma disconnects, the SSE Redis subscriber quits and BullMQ workers
+  // close cleanly — otherwise node is SIGKILLed and in-flight jobs stall/double-run.
+  app.enableShutdownHooks();
+
   await app.listen(Number(process.env.PORT) || 3066);
 }
 

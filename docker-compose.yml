@@ -4,10 +4,12 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: shopee_review
-      POSTGRES_PASSWORD: shopee_review_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopee_review_dev}
       POSTGRES_DB: shopee_review
+    # Bound to loopback only: never publish the database on a public interface.
+    # Prod overrides POSTGRES_PASSWORD via gitignored .env with a fresh volume.
     ports:
-      - "65432:5432"
+      - "127.0.0.1:65432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -48,7 +50,7 @@ services:
       DB_HOST: db
       DB_PORT: "5432"
       DB_USER: shopee_review
-      DB_PASSWORD: shopee_review_dev
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-shopee_review_dev}
       DB_NAME: shopee_review
       LISTEN_PORT: "6432"
       POOL_MODE: transaction
@@ -60,7 +62,7 @@ services:
       AUTH_TYPE: scram-sha-256
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U shopee_review || exit 1"]
       interval: 10s
@@ -80,7 +82,7 @@ services:
       POSTGRES_PORT: "5432"
       POSTGRES_DB: shopee_review
       POSTGRES_USER: shopee_review
-      POSTGRES_PASSWORD: shopee_review_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopee_review_dev}
       SCHEDULE: "@daily"
       BACKUP_KEEP_DAYS: "7"
       BACKUP_KEEP_WEEKS: "4"
@@ -90,7 +92,7 @@ services:
       - ./backups:/backups
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
 
   # ---------------------------------------------------------------------------
   # Application services (built from each app's Dockerfile). Behind Nginx.
@@ -104,15 +106,22 @@ services:
       NODE_ENV: production
       PORT: "3066"
       # Runtime traffic through pgBouncer; migrations via DIRECT_URL (Postgres).
-      DATABASE_URL: postgresql://shopee_review:shopee_review_dev@pgbouncer:6432/shopee_review?pgbouncer=true&connection_limit=1
-      DIRECT_URL: postgresql://shopee_review:shopee_review_dev@db:5432/shopee_review
+      # connection_limit must be >1: this long-running process runs HTTP queries,
+      # BullMQ workers and crons in one node — a single connection serializes them
+      # all, so one slow query (MV refresh, retention delete) would block every API
+      # call. 15 stays under pgBouncer DEFAULT_POOL_SIZE=10 client fan-in headroom.
+      DATABASE_URL: postgresql://shopee_review:${POSTGRES_PASSWORD:-shopee_review_dev}@pgbouncer:6432/shopee_review?pgbouncer=true&connection_limit=15
+      DIRECT_URL: postgresql://shopee_review:${POSTGRES_PASSWORD:-shopee_review_dev}@db:5432/shopee_review
       REDIS_URL: redis://redis:6379
       MEILI_HOST: http://meilisearch:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterKeyChangeMe}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (set a long random string in .env)}
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-admin-token}
-      # Set to "true" only when serving over HTTPS (see app-tls.conf.disabled).
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Guards the Bull Board queue dashboard (job payloads carry emails/reset
+      # links) — required, no insecure default, same policy as JWT_SECRET.
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN is required (set a long random string in .env)}
+      # Optional hard override. Normally leave unset: the backend auto-enables the
+      # Secure cookie flag when the request arrives over HTTPS (X-Forwarded-Proto).
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-shopee.review <onboarding@resend.dev>}
@@ -134,13 +143,13 @@ services:
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       db:
-        condition: service_started
+        condition: service_healthy
       pgbouncer:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       meilisearch:
-        condition: service_started
+        condition: service_healthy
     expose:
       - "3066"
     healthcheck:
@@ -183,8 +192,11 @@ services:
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
+    # Loopback-only publish: in prod Traefik reaches nginx over the `coolify`
+    # network (TLS terminates there), so the app is never served as plain HTTP on
+    # a public interface. Local dev still hits http://localhost:8081.
     ports:
-      - "8081:80"
+      - "127.0.0.1:8081:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro

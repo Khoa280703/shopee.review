@@ -1,6 +1,7 @@
 import { type ExecutionContext } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import type { Request, Response } from 'express';
+import { resolveCookieSecure } from './cookie-secure';
 
 /** Cookie holding the OAuth CSRF nonce (double-submit against ?state on callback). */
 export const OAUTH_STATE_COOKIE = 'oauth_state';
@@ -18,7 +19,7 @@ export function mintOAuthState(context: ExecutionContext): Record<string, unknow
   const state = randomBytes(16).toString('hex');
   res.cookie(OAUTH_STATE_COOKIE, state, {
     httpOnly: true,
-    secure: process.env.COOKIE_SECURE === 'true',
+    secure: resolveCookieSecure(req),
     sameSite: 'lax',
     maxAge: 10 * 60 * 1000,
     path: '/',

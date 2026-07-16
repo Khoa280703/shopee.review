@@ -27,6 +27,7 @@ COPY --from=builder /app/packages/database/node_modules ./packages/database/node
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
 COPY --from=builder /app/apps/backend/package.json ./apps/backend/package.json
 COPY --from=builder /app/packages/database ./packages/database
-RUN mkdir -p /app/uploads
 EXPOSE 3066
-CMD ["sh", "-c", "cd packages/database && pnpm exec prisma migrate deploy && cd /app && node apps/backend/dist/main.js"]
+# `exec node` so node becomes PID 1 and receives SIGTERM directly (the shell does
+# not forward signals) — required for enableShutdownHooks to run on deploy/stop.
+CMD ["sh", "-c", "cd packages/database && pnpm exec prisma migrate deploy && cd /app && exec node apps/backend/dist/main.js"]

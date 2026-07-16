@@ -1,4 +1,13 @@
+import { timingSafeEqual } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
+
+/** Constant-time string compare — avoids leaking the token via response timing. */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 
 /**
  * Guards the Bull Board dashboard. Accepts `Authorization: Bearer <ADMIN_TOKEN>`
@@ -23,7 +32,7 @@ export function bullBoardAuth(
     const decoded = Buffer.from(auth.slice(6), 'base64').toString('utf8');
     basicPass = decoded.split(':')[1] ?? null;
   }
-  if (bearer === adminToken || basicPass === adminToken) {
+  if ((bearer && safeEqual(bearer, adminToken)) || (basicPass && safeEqual(basicPass, adminToken))) {
     next();
     return;
   }

@@ -30,6 +30,8 @@ const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 export interface SessionMeta {
   userAgent?: string | null;
   ip?: string | null;
+  /** Whether the request arrived over HTTPS — drives the cookie `Secure` flag. */
+  secure?: boolean;
 }
 
 @Injectable()
@@ -69,16 +71,6 @@ export class AuthService {
     return rest;
   }
 
-  /**
-   * Cookie `Secure` is decoupled from NODE_ENV: a `Secure` cookie is rejected by
-   * browsers over plain HTTP, which would silently break login on any prod
-   * deployment that hasn't terminated TLS yet. Set COOKIE_SECURE=true only once
-   * the site is served over HTTPS. Defaults to false so HTTP deploys still work.
-   */
-  private get cookieSecure(): boolean {
-    return this.config.get('COOKIE_SECURE') === 'true';
-  }
-
   private async setAuthCookie(
     res: Response,
     user: Pick<User, 'id' | 'username' | 'tokenVersion'>,
@@ -102,28 +94,28 @@ export class AuthService {
     });
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
-      secure: this.cookieSecure,
+      secure: meta?.secure ?? false,
       sameSite: 'lax',
       maxAge: COOKIE_MAX_AGE,
       path: '/',
     });
   }
 
-  clearAuthCookie(res: Response): void {
+  clearAuthCookie(res: Response, meta?: SessionMeta): void {
     res.clearCookie(COOKIE_NAME, {
       path: '/',
       httpOnly: true,
-      secure: this.cookieSecure,
+      secure: meta?.secure ?? false,
       sameSite: 'lax',
     });
   }
 
   /** Log out: revoke THIS session (if any) and clear the cookie. */
-  async logout(res: Response, sessionId?: string): Promise<void> {
+  async logout(res: Response, sessionId?: string, meta?: SessionMeta): Promise<void> {
     if (sessionId) {
       await this.prisma.session.deleteMany({ where: { id: sessionId } });
     }
-    this.clearAuthCookie(res);
+    this.clearAuthCookie(res, meta);
   }
 
   /** Active sessions for the account, newest first; flags the caller's own. */
