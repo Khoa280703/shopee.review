@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
 import { UsersService } from '../users/users.service';
 import { MeilisearchService } from './meilisearch.service';
 
@@ -18,6 +19,7 @@ interface PostSearchRow {
   username: string;
   display_name: string;
   avatar_url: string | null;
+  verified: boolean;
 }
 
 @Injectable()
@@ -47,6 +49,15 @@ export class SearchService {
     return { posts, users, meta: { page, limit: 20 } };
   }
 
+  /**
+   * Rebuild the entire Meilisearch index from Postgres. Admin-triggered recovery
+   * for index drift — indexing is otherwise best-effort (enqueue/job failures are
+   * swallowed) and the auto-backfill only runs against an empty index.
+   */
+  reindexAll(): Promise<number> {
+    return this.meili.reindexAll();
+  }
+
   private async searchPosts(query: string, page: number) {
     // Primary: Meilisearch (diacritic-insensitive). Fallback: PostgreSQL FTS.
     if (this.meili.enabled) {
@@ -69,7 +80,7 @@ export class SearchService {
   private async loadPostsByIds(ids: number[]) {
     const posts = await this.prisma.post.findMany({
       where: { id: { in: ids } },
-      include: { user: { select: { username: true, displayName: true, avatarUrl: true } } },
+      include: { user: { select: PUBLIC_AUTHOR_SELECT } },
     });
     const byId = new Map(posts.map((p) => [p.id, p]));
     // Preserve Meilisearch relevance ordering.
@@ -97,7 +108,7 @@ export class SearchService {
     const rows = await this.prisma.$queryRaw<PostSearchRow[]>`
       SELECT p.id, p.title, p.content, p.images, p.affiliate_url, p.product_url,
              p.product_meta, p.like_count, p.comment_count, p.click_count, p.created_at,
-             u.username, u.display_name, u.avatar_url
+             u.username, u.display_name, u.avatar_url, u.verified
       FROM posts p
       JOIN users u ON p.user_id = u.id
       WHERE to_tsvector('simple', p.title || ' ' || coalesce(p.content, ''))
@@ -121,7 +132,12 @@ export class SearchService {
       commentCount: r.comment_count,
       clickCount: r.click_count,
       createdAt: r.created_at,
-      user: { username: r.username, displayName: r.display_name, avatarUrl: r.avatar_url },
+      user: {
+        username: r.username,
+        displayName: r.display_name,
+        avatarUrl: r.avatar_url,
+        verified: r.verified,
+      },
     }));
   }
 }

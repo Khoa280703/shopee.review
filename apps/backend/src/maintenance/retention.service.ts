@@ -17,6 +17,11 @@ const READ_NOTIFICATION_RETENTION_DAYS = 30;
 // linger in the user's "active sessions" list forever.
 const SESSION_RETENTION_DAYS = 30;
 
+// click_logs is the high-insert table; deleting a whole backlog (e.g. the first
+// sweep, or after the cron missed a few days) in one statement takes a long lock
+// and bloats WAL. Delete in bounded chunks so each transaction is short.
+const CLICK_LOG_DELETE_BATCH = 10_000;
+
 /**
  * Nightly retention sweep: caps unbounded-growth tables and expires stored PII.
  * DELETEs are idempotent (age-filtered), so running on more than one instance is
@@ -64,9 +69,7 @@ export class RetentionService {
     const notifCutoff = new Date(now - READ_NOTIFICATION_RETENTION_DAYS * day);
     const sessionCutoff = new Date(now - SESSION_RETENTION_DAYS * day);
 
-    const clicks = await this.prisma.clickLog.deleteMany({
-      where: { createdAt: { lt: clickCutoff } },
-    });
+    const clickLogs = await this.deleteClickLogsInBatches(clickCutoff);
     const notifs = await this.prisma.notification.deleteMany({
       where: { read: true, createdAt: { lt: notifCutoff } },
     });
@@ -74,6 +77,24 @@ export class RetentionService {
       where: { createdAt: { lt: sessionCutoff } },
     });
 
-    return { clickLogs: clicks.count, notifications: notifs.count, sessions: sessions.count };
+    return { clickLogs, notifications: notifs.count, sessions: sessions.count };
+  }
+
+  /** Delete aged click_logs in bounded chunks to keep each lock/transaction short. */
+  private async deleteClickLogsInBatches(cutoff: Date): Promise<number> {
+    let total = 0;
+    for (;;) {
+      const deleted = await this.prisma.$executeRaw`
+        DELETE FROM click_logs
+        WHERE id IN (
+          SELECT id FROM click_logs
+          WHERE created_at < ${cutoff}
+          ORDER BY id
+          LIMIT ${CLICK_LOG_DELETE_BATCH}
+        )`;
+      total += deleted;
+      if (deleted < CLICK_LOG_DELETE_BATCH) break;
+    }
+    return total;
   }
 }

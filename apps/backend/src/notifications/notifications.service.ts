@@ -11,9 +11,10 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import type { NotificationType } from '@app/database';
-import { interval, map, merge, Observable, Subject } from 'rxjs';
+import { finalize, interval, map, merge, Observable, Subject } from 'rxjs';
 import type { RedisClientType } from 'redis';
 import { PrismaService } from '../prisma/prisma.service';
+import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
 import { NOTIFICATION_JOB, NOTIFICATION_QUEUE } from '../queue/queue.constants';
 import { REDIS_CLIENT, type AppRedisClient } from '../redis/redis.module';
 
@@ -31,13 +32,16 @@ export interface CreateNotificationDto {
 }
 
 const NOTIFICATION_INCLUDE = {
-  actor: { select: { username: true, displayName: true, avatarUrl: true } },
+  actor: { select: PUBLIC_AUTHOR_SELECT },
   post: { select: { id: true, title: true } },
 };
 
 @Injectable()
 export class NotificationsService implements OnModuleInit, OnModuleDestroy {
-  private readonly streams = new Map<number, Subject<MessageEvent>>();
+  // One Subject per locally-connected user, refcounted by open SSE streams
+  // (a user may have several tabs). The entry is removed when the last stream
+  // closes, so the map doesn't grow unbounded with every user who ever connected.
+  private readonly streams = new Map<number, { subject: Subject<MessageEvent>; refs: number }>();
   private readonly logger = new Logger(NotificationsService.name);
   // Dedicated subscriber connection (a Redis client in subscribe mode cannot
   // issue other commands). Only created when Redis is available.
@@ -69,7 +73,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           };
           this.streams
             .get(recipientId)
-            ?.next({ data: JSON.stringify(notification) });
+            ?.subject.next({ data: JSON.stringify(notification) });
         } catch {
           // Ignore malformed messages rather than crash the subscriber.
         }
@@ -112,7 +116,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         );
       }
     }
-    this.streams.get(recipientId)?.next({ data: JSON.stringify(notification) });
+    this.streams.get(recipientId)?.subject.next({ data: JSON.stringify(notification) });
   }
 
   /**
@@ -189,14 +193,23 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   createStream(userId: number): Observable<MessageEvent> {
-    let subject = this.streams.get(userId);
-    if (!subject) {
-      subject = new Subject<MessageEvent>();
-      this.streams.set(userId, subject);
+    let entry = this.streams.get(userId);
+    if (!entry) {
+      entry = { subject: new Subject<MessageEvent>(), refs: 0 };
+      this.streams.set(userId, entry);
     }
+    entry.refs += 1;
 
     const heartbeat = interval(30000).pipe(map((): MessageEvent => ({ data: 'ping' })));
-    return merge(subject.asObservable(), heartbeat);
+    return merge(entry.subject.asObservable(), heartbeat).pipe(
+      // Drop the entry when the last tab for this user disconnects.
+      finalize(() => {
+        const current = this.streams.get(userId);
+        if (!current) return;
+        current.refs -= 1;
+        if (current.refs <= 0) this.streams.delete(userId);
+      }),
+    );
   }
 
   async list(userId: number, cursor?: number, limit = 30) {

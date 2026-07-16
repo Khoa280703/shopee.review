@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, type ReactionType } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
+import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BlocksService } from '../moderation/blocks.service';
 import { SocialGateway } from './social.gateway';
@@ -116,7 +117,7 @@ export class SocialService {
     const follows = await this.prisma.follow.findMany({
       where: { followingId: user.id },
       include: {
-        follower: { select: { username: true, displayName: true, avatarUrl: true, bio: true } },
+        follower: { select: { ...PUBLIC_AUTHOR_SELECT, bio: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip,
@@ -139,7 +140,7 @@ export class SocialService {
     const follows = await this.prisma.follow.findMany({
       where: { followerId: user.id },
       include: {
-        following: { select: { username: true, displayName: true, avatarUrl: true, bio: true } },
+        following: { select: { ...PUBLIC_AUTHOR_SELECT, bio: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip,
@@ -277,7 +278,7 @@ export class SocialService {
       include: {
         post: {
           include: {
-            user: { select: { username: true, displayName: true, avatarUrl: true } },
+            user: { select: PUBLIC_AUTHOR_SELECT },
             category: true,
           },
         },
@@ -310,12 +311,12 @@ export class SocialService {
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       orderBy: { id: 'desc' },
       include: {
-        user: { select: { username: true, displayName: true, avatarUrl: true } },
+        user: { select: PUBLIC_AUTHOR_SELECT },
         replies: {
           take: REPLIES_PAGE_SIZE,
           orderBy: { id: 'asc' },
           include: {
-            user: { select: { username: true, displayName: true, avatarUrl: true } },
+            user: { select: PUBLIC_AUTHOR_SELECT },
           },
         },
         _count: { select: { replies: true } },
@@ -352,7 +353,7 @@ export class SocialService {
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       orderBy: { id: 'asc' },
       include: {
-        user: { select: { username: true, displayName: true, avatarUrl: true } },
+        user: { select: PUBLIC_AUTHOR_SELECT },
       },
     });
 
@@ -387,7 +388,7 @@ export class SocialService {
     const [comment] = await this.prisma.$transaction([
       this.prisma.comment.create({
         data: { userId, postId, content, parentId },
-        include: { user: { select: { username: true, displayName: true, avatarUrl: true } } },
+        include: { user: { select: PUBLIC_AUTHOR_SELECT } },
       }),
       this.prisma.post.update({
         where: { id: postId },
@@ -433,15 +434,20 @@ export class SocialService {
   // Shared deletion side-effects (delete + counter decrement incl. replies +
   // broadcast). Ownership enforced by callers, not a bypass flag.
   private async deleteCommentCore(commentId: number, postId: number) {
-    const replyCount = await this.prisma.comment.count({ where: { parentId: commentId } });
-
-    await this.prisma.$transaction([
-      this.prisma.comment.delete({ where: { id: commentId } }),
-      this.prisma.post.update({
-        where: { id: postId },
-        data: { commentCount: { decrement: 1 + replyCount } },
-      }),
-    ]);
+    // Delete the comment and its (one-level) replies in a single statement and
+    // decrement by the ACTUAL rows removed, all inside one transaction. Counting
+    // replies separately (as before) raced a concurrent reply insert: the cascade
+    // deleted it but the stale count left commentCount permanently too high.
+    await this.prisma.$transaction(async (tx) => {
+      const deleted = await tx.$executeRaw`
+        DELETE FROM comments WHERE id = ${commentId} OR parent_id = ${commentId}`;
+      if (deleted > 0) {
+        await tx.post.update({
+          where: { id: postId },
+          data: { commentCount: { decrement: deleted } },
+        });
+      }
+    });
 
     this.gateway.emitCommentDeleted(postId, commentId);
 

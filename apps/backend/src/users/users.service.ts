@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
+import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 const PUBLIC_PROFILE_SELECT = {
@@ -9,11 +10,26 @@ const PUBLIC_PROFILE_SELECT = {
   displayName: true,
   bio: true,
   avatarUrl: true,
+  verified: true,
   totalClicks: true,
   followersCount: true,
   followingCount: true,
   createdAt: true,
 } as const;
+
+/** Row shape returned by the raw trigram user search (aliased to camelCase). */
+interface UserSearchRow {
+  id: number;
+  username: string;
+  displayName: string;
+  bio: string | null;
+  avatarUrl: string | null;
+  verified: boolean;
+  totalClicks: number;
+  followersCount: number;
+  followingCount: number;
+  createdAt: Date;
+}
 
 @Injectable()
 export class UsersService {
@@ -96,7 +112,7 @@ export class UsersService {
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       orderBy: { id: 'desc' },
       include: {
-        user: { select: { username: true, displayName: true, avatarUrl: true } },
+        user: { select: PUBLIC_AUTHOR_SELECT },
         category: true,
       },
     });
@@ -107,19 +123,27 @@ export class UsersService {
   }
 
   async searchUsers(query: string, limit = 20) {
-    if (!query?.trim()) {
+    const q = query?.trim();
+    if (!q) {
       return [];
     }
-    return this.prisma.user.findMany({
-      where: {
-        OR: [
-          { username: { contains: query, mode: 'insensitive' } },
-          { displayName: { contains: query, mode: 'insensitive' } },
-        ],
-      },
-      select: PUBLIC_PROFILE_SELECT,
-      take: limit,
-    });
+    // Index-backed search via the users_search_trgm_idx GIN(pg_trgm) expression
+    // index on (username || ' ' || display_name) — the predicate matches the
+    // index expression so ILIKE avoids the full-table sequential scan the old
+    // Prisma `contains` OR-query forced. Banned users are hidden (parity with
+    // findByUsername, which 404s them).
+    const like = `%${q}%`;
+    return this.prisma.$queryRaw<UserSearchRow[]>`
+      SELECT id, username, display_name AS "displayName", bio,
+             avatar_url AS "avatarUrl", verified, total_clicks AS "totalClicks",
+             followers_count AS "followersCount", following_count AS "followingCount",
+             created_at AS "createdAt"
+      FROM users
+      WHERE banned_at IS NULL
+        AND (username || ' ' || display_name) ILIKE ${like}
+      ORDER BY followers_count DESC, id ASC
+      LIMIT ${limit}
+    `;
   }
 
   async deleteAccount(userId: number): Promise<{ success: boolean }> {

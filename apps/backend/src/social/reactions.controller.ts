@@ -45,8 +45,10 @@ export class ReactionsController {
     return this.socialService.reactionStatus(id, viewer?.id);
   }
 
+  // Login required (parity with every other interaction) so the shareCount that
+  // feeds the trending score can't be inflated by anonymous drip requests.
   @Post(':id/share')
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
   @Throttle({ default: { limit: 30, ttl: 60 * 1000 } })
   share(@Param('id', ParseIntPipe) id: number) {
     return this.socialService.share(id);

@@ -22,6 +22,10 @@ export class StatsService {
         createdAt: true,
       },
       orderBy: { clickCount: 'desc' },
+      // Cap the dashboard payload: a prolific author could have thousands of
+      // posts, and returning them all on every dashboard open is wasteful. The
+      // top 500 by clicks is far beyond what the UI shows.
+      take: 500,
     });
     return posts;
   }

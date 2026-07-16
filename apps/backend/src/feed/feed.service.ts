@@ -1,7 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { PrismaService } from '../prisma/prisma.service';
+import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
 import { BlocksService } from '../moderation/blocks.service';
 
 // Short TTL: feed is personalized + write-heavy, so 30s smooths bursty reads
@@ -10,6 +11,8 @@ const FEED_CACHE_TTL_MS = 30_000;
 
 @Injectable()
 export class FeedService {
+  private readonly logger = new Logger(FeedService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
@@ -18,11 +21,25 @@ export class FeedService {
 
   async getFeed(userId: number, cursor?: number, limit = 20) {
     const key = `feed:${userId}:${cursor ?? 'head'}:${limit}`;
-    const hit = await this.cache.get<Awaited<ReturnType<FeedService['queryFeed']>>>(key);
-    if (hit) return hit;
+    // Cache is best-effort: a Redis error (e.g. the shared noeviction instance
+    // filling up) must DEGRADE to a direct DB read, never 500 the whole feed.
+    try {
+      const hit = await this.cache.get<Awaited<ReturnType<FeedService['queryFeed']>>>(key);
+      if (hit) return hit;
+    } catch (e) {
+      this.logger.warn(`cache get failed for ${key}: ${e instanceof Error ? e.message : e}`);
+    }
 
     const result = await this.queryFeed(userId, cursor, limit);
-    await this.cache.set(key, result, FEED_CACHE_TTL_MS);
+    // Don't pin an empty feed for the full TTL: a user who just followed someone
+    // would otherwise see nothing until it expires.
+    if (result.data.length > 0) {
+      try {
+        await this.cache.set(key, result, FEED_CACHE_TTL_MS);
+      } catch (e) {
+        this.logger.warn(`cache set failed for ${key}: ${e instanceof Error ? e.message : e}`);
+      }
+    }
     return result;
   }
 
@@ -35,7 +52,7 @@ export class FeedService {
         ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
       },
       include: {
-        user: { select: { username: true, displayName: true, avatarUrl: true } },
+        user: { select: PUBLIC_AUTHOR_SELECT },
         category: true,
       },
       orderBy: { id: 'desc' },

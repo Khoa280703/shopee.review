@@ -13,6 +13,7 @@ import type { Queue } from 'bullmq';
 import { Prisma } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../common/current-user.decorator';
+import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   INDEX_JOB,
@@ -45,7 +46,7 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const FEED_CACHE_TTL_MS = 60 * 1000;
 
 const POST_INCLUDE = {
-  user: { select: { username: true, displayName: true, avatarUrl: true } },
+  user: { select: PUBLIC_AUTHOR_SELECT },
   category: true,
 } satisfies Prisma.PostInclude;
 
@@ -68,12 +69,14 @@ type RawPostRow = {
   username: string;
   display_name: string;
   avatar_url: string | null;
+  verified: boolean;
 };
 
 function mapRawPostRow({
   username,
   display_name,
   avatar_url,
+  verified,
   ...row
 }: RawPostRow) {
   return {
@@ -92,7 +95,7 @@ function mapRawPostRow({
     shareCount: Number(row.share_count ?? 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    user: { username, displayName: display_name, avatarUrl: avatar_url },
+    user: { username, displayName: display_name, avatarUrl: avatar_url, verified },
   };
 }
 
@@ -230,6 +233,7 @@ export class PostsService {
         u.username,
         u.display_name,
         u.avatar_url,
+        u.verified,
         (
           p.like_count    * 3 +
           p.comment_count * 5 +
@@ -268,7 +272,7 @@ export class PostsService {
     const cursorClause = cursor ? Prisma.sql`AND p.id < ${cursor}` : Prisma.empty;
 
     const rows = await this.prisma.$queryRaw<RawPostRow[]>`
-      SELECT p.*, u.username, u.display_name, u.avatar_url
+      SELECT p.*, u.username, u.display_name, u.avatar_url, u.verified
       FROM posts p
       JOIN users u ON u.id = p.user_id
       WHERE ${match} ${catClause} ${cursorClause}
@@ -299,7 +303,8 @@ export class PostsService {
         mv.*,
         u.username,
         u.display_name,
-        u.avatar_url
+        u.avatar_url,
+        u.verified
       FROM trending_posts_mv mv
       JOIN users u ON u.id = mv.user_id
       ORDER BY mv.score DESC, mv.id DESC

@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsEnum } from 'class-validator';
+import { IsBoolean, IsEnum } from 'class-validator';
 import { ReportStatus } from '@app/database';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
@@ -21,6 +21,11 @@ import { AdminService } from './admin.service';
 class ResolveReportDto {
   @IsEnum(ReportStatus)
   status!: ReportStatus;
+}
+
+class SetVerifiedDto {
+  @IsBoolean()
+  verified!: boolean;
 }
 
 @Controller('admin')
@@ -66,5 +71,14 @@ export class AdminController {
   @Post('users/:id/unban')
   unban(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
     return this.admin.unban(user.id, id);
+  }
+
+  @Patch('users/:id/verified')
+  setVerified(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetVerifiedDto,
+  ) {
+    return this.admin.setVerified(user.id, id, dto.verified);
   }
 }

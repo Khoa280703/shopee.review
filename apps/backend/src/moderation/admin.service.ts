@@ -94,4 +94,16 @@ export class AdminService {
     await this.audit(adminId, 'UNBAN_USER', 'USER', targetId);
     return { success: true };
   }
+
+  /** Grant or revoke the verified ("blue tick") badge on a user. */
+  async setVerified(adminId: number, targetId: number, verified: boolean) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetId },
+      select: { id: true },
+    });
+    if (!target) throw new NotFoundException('Không tìm thấy người dùng');
+    await this.prisma.user.update({ where: { id: targetId }, data: { verified } });
+    await this.audit(adminId, verified ? 'VERIFY_USER' : 'UNVERIFY_USER', 'USER', targetId);
+    return { success: true, verified };
+  }
 }
