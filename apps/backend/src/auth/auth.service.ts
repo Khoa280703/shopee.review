@@ -155,9 +155,10 @@ export class AuthService {
       where: { OR: [{ email: dto.email }, { username: dto.username }] },
     });
     if (existing) {
-      throw new ConflictException(
-        existing.email === dto.email ? 'Email đã được sử dụng' : 'Username đã tồn tại',
-      );
+      // Generic message on purpose: a per-field answer ("email used" vs
+      // "username taken") lets an attacker probe which emails are registered.
+      // Mirrors the anti-enumeration stance of forgot-password/resend-verify.
+      throw new ConflictException('Email hoặc tên người dùng đã được sử dụng');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
