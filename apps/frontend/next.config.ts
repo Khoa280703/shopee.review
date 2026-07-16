@@ -1,5 +1,8 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
+import createNextIntlPlugin from 'next-intl/plugin';
+
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 // Backend origin for the DEV rewrite only (no nginx in front of `pnpm dev`).
 // In prod nginx proxies these same-origin paths, so rewrites() returns [].
@@ -47,7 +50,7 @@ const nextConfig: NextConfig = {
 
 // withSentryConfig is a no-op for runtime when no DSN is set; source-map upload
 // only runs when SENTRY_AUTH_TOKEN + org/project are present.
-export default withSentryConfig(nextConfig, {
+export default withSentryConfig(withNextIntl(nextConfig), {
   silent: !process.env.CI,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,

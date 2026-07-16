@@ -1,0 +1,40 @@
+{
+  "nav": {
+    "home": "Home",
+    "explore": "Explore",
+    "forYou": "For you",
+    "following": "Following",
+    "feed": "Feed",
+    "notifications": "Notifications",
+    "saved": "Saved",
+    "profile": "Profile",
+    "dashboard": "Analytics",
+    "admin": "Admin",
+    "settings": "Settings",
+    "search": "Explore",
+    "post": "Post",
+    "login": "Log in",
+    "logout": "Log out"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "retry": "Retry",
+    "loading": "Loading...",
+    "submit": "Send",
+    "more": "Show more",
+    "search": "Search"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "language": "Language",
+    "languageVi": "Tiếng Việt",
+    "languageEn": "English"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "nav": {
+    "home": "Trang chủ",
+    "explore": "Khám phá",
+    "forYou": "Dành cho bạn",
+    "following": "Đang theo dõi",
+    "feed": "Bảng tin",
+    "notifications": "Thông báo",
+    "saved": "Đã lưu",
+    "profile": "Trang cá nhân",
+    "dashboard": "Thống kê",
+    "admin": "Quản trị",
+    "settings": "Cài đặt",
+    "search": "Khám phá",
+    "post": "Đăng bài",
+    "login": "Đăng nhập",
+    "logout": "Đăng xuất"
+  },
+  "common": {
+    "save": "Lưu",
+    "cancel": "Huỷ",
+    "close": "Đóng",
+    "retry": "Thử lại",
+    "loading": "Đang tải...",
+    "submit": "Gửi",
+    "more": "Xem thêm",
+    "search": "Tìm kiếm"
+  },
+  "settings": {
+    "title": "Cài đặt",
+    "appearance": "Giao diện",
+    "theme": "Chủ đề",
+    "themeLight": "Sáng",
+    "themeDark": "Tối",
+    "themeSystem": "Theo hệ thống",
+    "language": "Ngôn ngữ",
+    "languageVi": "Tiếng Việt",
+    "languageEn": "English"
+  }
+}

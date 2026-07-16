@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
 import { Header } from '@/components/layout/header';
 import { MobileNav } from '@/components/layout/mobile-nav';
@@ -33,24 +35,28 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
   return (
-    <html lang="vi" className={inter.variable}>
+    <html lang={locale} className={inter.variable}>
       <body className={`${inter.className} bg-background text-on-background`}>
-        <QueryProvider>
-          <AuthProvider>
-            <SocketProvider>
-              {/* Top header — only on mobile/tablet */}
-              <Header />
-              {/* Desktop left sidebar */}
-              <SidebarNav />
-              {/* Main content — shifted right on desktop to clear the fixed sidebar */}
-              <main className="min-h-screen pb-20 lg:ml-[72px] lg:pb-10">{children}</main>
-              {/* Bottom nav — only on mobile */}
-              <MobileNav />
-            </SocketProvider>
-          </AuthProvider>
-        </QueryProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <QueryProvider>
+            <AuthProvider>
+              <SocketProvider>
+                {/* Top header — only on mobile/tablet */}
+                <Header />
+                {/* Desktop left sidebar */}
+                <SidebarNav />
+                {/* Main content — shifted right on desktop to clear the fixed sidebar */}
+                <main className="min-h-screen pb-20 lg:ml-[72px] lg:pb-10">{children}</main>
+                {/* Bottom nav — only on mobile */}
+                <MobileNav />
+              </SocketProvider>
+            </AuthProvider>
+          </QueryProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );
