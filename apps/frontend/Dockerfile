@@ -28,8 +28,13 @@ FROM node:20-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-COPY --from=builder /app/apps/frontend/.next/standalone ./
-COPY --from=builder /app/apps/frontend/.next/static ./apps/frontend/.next/static
-COPY --from=builder /app/apps/frontend/public ./apps/frontend/public
+RUN groupadd --system app && useradd --system --gid app --home /app --no-create-home app
+# --chown on each COPY (not a trailing `RUN chown -R`): a post-hoc chown over
+# an already-copied tree makes BuildKit materialize a second full copy of
+# everything in a new layer, needlessly doubling the image.
+COPY --chown=app:app --from=builder /app/apps/frontend/.next/standalone ./
+COPY --chown=app:app --from=builder /app/apps/frontend/.next/static ./apps/frontend/.next/static
+COPY --chown=app:app --from=builder /app/apps/frontend/public ./apps/frontend/public
+USER app
 EXPOSE 3000
 CMD ["node", "apps/frontend/server.js"]

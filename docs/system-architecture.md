@@ -22,7 +22,6 @@ Backend NestJS modules (`apps/backend/src/app.module.ts`):
 | **Categories** | Post categories (e.g., Electronics, Fashion) |
 | **Scraper** | Auto-scrape Shopee product data (API-first, fallback to Playwright), cache 24h, queue-based |
 | **Uploads** | Cloudflare R2 S3-compatible image uploads |
-| **Metrics** | Prometheus metrics at `/metrics` (restricted to private IPs via Nginx) |
 | **Maintenance** | Scheduled tasks (e.g., token version bumps on release, cleanup) |
 | **Moderation** | Report + Block models; admin endpoints for reports, post/comment deletion, user ban/unban |
 | **Blocks** | Block relationship (User can block another User; blocks cascade: can't comment, react, bookmark, follow; feed excludes blocked; profiles 404 if viewing user blocks you) |
@@ -165,7 +164,7 @@ Notification creation is **never** blocking. Exceptions during notification emit
 ## Deployment Topology
 
 ```
-Internet → Traefik (Coolify, Let's Encrypt TLS) → Nginx:8081
+Internet → Traefik (Coolify, Let's Encrypt TLS, terminates HTTPS) → Nginx:8081 (plain HTTP, private `coolify` network)
   ↓
 Nginx (rate-limit, gzip, microcache, route):
   ├→ /socket.io/* → Backend:3066 (WebSocket, no buffering)
@@ -175,7 +174,6 @@ Nginx (rate-limit, gzip, microcache, route):
   ├→ /api/* → Backend:3066 (general API, 2s microcache for unauthenticated GET)
   ├→ /admin/queues → Backend:3066 (Bull Board, auth in app)
   ├→ /r/:postId → Backend:3066 (click tracking redirect)
-  ├→ /metrics → Backend:3066 (restricted to private IPs only)
   ├→ /_next/static/* → Frontend:3000 (long cache, 1y expires)
   └→ /* → Frontend:3000 (Next.js frontend)
 
@@ -246,15 +244,16 @@ Frontend:3000 (Next.js 15):
 
 ### Observability & Logging
 - **Token redaction**: Single-use tokens (verify, reset, OAuth code) redacted from request-URL logs
-- **Metrics endpoint**: `/metrics` (Prometheus) restricted to private IPs via Nginx (127.0.0.1, 172.16.0.0/12, 10.0.0.0/8)
+- **Logs only, no metrics endpoint**: no `/metrics`/Prometheus surface exists; see "Observability" below
 
 ## Observability
 
-- **Logging**: Pino (structured JSON in prod, pretty-printed in dev); /metrics + /health silenced to reduce noise
+Logs-only by design (no Prometheus, no `/metrics` endpoint, no `MetricsModule`):
+
+- **Logging**: Pino (structured JSON in prod, pretty-printed in dev); `/health` silenced to reduce noise
 - **Tracing**: X-Request-ID header (generated per request)
 - **Error tracking**: Sentry (backend: SENTRY_DSN, frontend: NEXT_PUBLIC_SENTRY_DSN; no-op if unset)
-- **Metrics**: Prometheus at `/metrics` (scrape interval configurable in Grafana)
-- **Log aggregation**: Structured JSON + Loki (opt-in in docker-compose.monitoring.yml)
+- **Log aggregation** (opt-in, `docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d`): Promtail tails every container's stdout/stderr → Loki (14-day retention) → Grafana (sole datasource is Loki; admin password required via `GRAFANA_PASSWORD`; every port bound to `127.0.0.1`, reached over an SSH tunnel)
 
 ## CI/Build
 

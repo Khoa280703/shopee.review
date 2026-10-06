@@ -13,7 +13,6 @@ import { AuthModule } from './auth/auth.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
 import { BlocksModule } from './moderation/blocks.module';
 import { ModerationModule } from './moderation/moderation.module';
-import { MetricsModule } from './metrics/metrics.module';
 import { CategoriesModule } from './categories/categories.module';
 import { HealthController } from './health.controller';
 import { FeedModule } from './feed/feed.module';
@@ -77,7 +76,7 @@ import { UsersModule } from './users/users.module';
         autoLogging: {
           ignore: (req) => {
             const url = req.url ?? '';
-            return url.includes('/metrics') || url.includes('/health');
+            return url.includes('/health');
           },
         },
         redact: ['req.headers.authorization', 'req.headers.cookie'],
@@ -136,7 +135,6 @@ import { UsersModule } from './users/users.module';
     CategoriesModule,
     ScraperModule,
     UploadsModule,
-    MetricsModule,
     MaintenanceModule,
     BlocksModule,
     ModerationModule,

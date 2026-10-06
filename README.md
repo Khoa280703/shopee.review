@@ -16,8 +16,8 @@ Nền tảng xã hội review sản phẩm Shopee: bất kỳ ai cũng có thể
 - **Realtime**: Server-Sent Events (SSE, Nginx no-buffering) + Socket.io (Redis adapter)
 - **Search**: Meilisearch (primary) + PostgreSQL full-text fallback
 - **Routing**: Nginx (rate-limit, gzip, microcache)
-- **Container**: Docker Compose + Traefik (Coolify) + Let's Encrypt (certbot)
-- **Monitoring**: Prometheus, Grafana, Loki, Sentry, structured JSON logging (Pino)
+- **Container**: Docker Compose + Traefik (Coolify) terminating TLS via Let's Encrypt (no certbot container — Traefik issues/renews certs itself)
+- **Monitoring**: logs only — structured JSON (Pino) + Loki + Promtail + Grafana (`docker-compose.monitoring.yml`, opt-in), Sentry (no-op unless `SENTRY_DSN` set)
 - **CI/CD**: GitHub Actions (build+unit, integration-db with drift-check)
 
 ## Tính năng chính
@@ -78,7 +78,8 @@ Root `.env` file (xem `.env.example`):
 
 | Var | Value | Notes |
 |-----|-------|-------|
-| `DATABASE_URL` | `postgresql://shopee_review:shopee_review_dev@localhost:65432/shopee_review` | Host dev: direct to Postgres. Docker: point at pgBouncer:6432. |
+| `POSTGRES_PASSWORD` | `shopee_review_dev` (dev) | Required by `db`/`pgbouncer`/`db-backup` in docker-compose.yml (no insecure default); shared by the bootstrap superuser `shopee_review` (unused after init) and the non-superuser, DB-owner role `shopee_review_app` (what the app actually connects as). |
+| `DATABASE_URL` | `postgresql://shopee_review_app:shopee_review_dev@localhost:65432/shopee_review` | Host dev: direct to Postgres. Docker: point at pgBouncer:6432. |
 | `DIRECT_URL` | Same as DATABASE_URL | Non-pooled for migrations. |
 | `NODE_ENV` | `development` | development or production |
 | `PORT` | `3066` | Backend port |
@@ -89,10 +90,13 @@ Root `.env` file (xem `.env.example`):
 
 | Var | Value | Notes |
 |-----|-------|-------|
-| `DOMAIN` | `localhost` (dev), `shopee.review` (prod) | Traefik routing domain |
+| `DOMAIN` | `shopee.review` (prod); irrelevant in host dev | Traefik (Coolify) routing domain; `www.$DOMAIN` redirects to the apex |
 | `FRONTEND_URL` | `http://localhost:5166` | Backend CORS origin; what frontend sees as home |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:3066/api` | Browser-visible API endpoint |
 | `API_INTERNAL_URL` | `http://localhost:3066/api` | Backend→frontend SSR calls (internal network) |
+
+> The browser calls the API via a **relative** `/api` base (nginx is
+> same-origin) — there is no `NEXT_PUBLIC_API_URL`; one frontend image runs on
+> any host/port. Do not reintroduce it.
 
 ### Auth & Email
 
@@ -132,13 +136,11 @@ Root `.env` file (xem `.env.example`):
 | `SENTRY_DSN` | From Sentry backend project | Error tracking; no-op if unset |
 | `NEXT_PUBLIC_SENTRY_DSN` | From Sentry frontend project | — |
 | `LOG_LEVEL` | `trace\|debug\|info\|warn\|error` | Empty = default per NODE_ENV |
-| `GRAFANA_PASSWORD` | Strong password | For docker-compose.monitoring.yml |
+| `GRAFANA_PASSWORD` | Strong password | For docker-compose.monitoring.yml (Loki datasource only — no Prometheus) |
 
-### HTTPS & Backups
-
-| Var | Value | Notes |
-|-----|-------|-------|
-| `CERTBOT_EMAIL` | Your email | Let's Encrypt notifications |
+> **TLS**: no app-level config needed — Coolify's Traefik terminates HTTPS and
+> issues/renews the Let's Encrypt certificate itself (`DOMAIN` just has to
+> match the DNS record). See [docs/deployment-guide.md](docs/deployment-guide.md).
 
 > **Placeholders**: Google OAuth, Resend, R2, Sentry are optional; app boots normally but features degrade (verify link logged to console, uploads fail with 500, etc.).
 
@@ -181,7 +183,7 @@ Runs on every push to `master` and pull request.
 - **Moderation**: Reports with status (PENDING, RESOLVED, DISMISSED); admin can delete posts/comments or ban users
 - **Realtime**: SSE (Nginx no-buffer) + Socket.io (Redis adapter for multi-instance)
 - **Caching**: Redis 512mb noeviction (cache TTL 60s, BullMQ persistent, Socket.io adapter)
-- **Metrics**: Prometheus at `/metrics` (private IPs via Nginx), Grafana dashboards
+- **Observability**: logs only — structured JSON (Pino) shipped to Loki via Promtail, viewed in Grafana (`docker-compose.monitoring.yml`, opt-in, SSH-tunnel only)
 
 ## Troubleshooting
 

@@ -44,8 +44,6 @@ async function bootstrap() {
       // Bull Board mounts its own router; keep it off the /api prefix so its
       // basePath matches the mount point (auth handled in QueueModule).
       { path: 'admin/queues', method: RequestMethod.ALL },
-      // Expose Prometheus scrape target at /metrics (no /api prefix).
-      { path: 'metrics', method: RequestMethod.GET },
     ],
   });
   app.use(cookieParser());

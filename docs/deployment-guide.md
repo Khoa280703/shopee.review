@@ -2,12 +2,12 @@
 
 ## Overview
 
-Production deployment runs on Coolify with Traefik managing Let's Encrypt TLS, Nginx as the single entrypoint for rate-limiting and routing, and Docker Compose orchestrating the full stack (PostgreSQL, pgBouncer, Redis, Meilisearch, backend, frontend, certbot).
+Production deployment runs on Coolify. Coolify's Traefik (container `coolify-proxy`, Docker network `coolify`) owns host ports 80/443, routes `Host(shopee.review)` (+ `www.shopee.review` → redirect) to this stack's `nginx` service, and terminates TLS itself via its `letsencrypt` ACME resolver — **there is no certbot container in this stack**; nginx only ever speaks plain HTTP, even in production. Nginx is the single entrypoint for rate-limiting and routing to backend/frontend. Docker Compose orchestrates the app stack (PostgreSQL, pgBouncer, Redis, Meilisearch, backend, frontend, nginx, db-backup); monitoring (Loki/Promtail/Grafana) is a separate, optional compose file.
 
 ## Docker Compose Stack
 
 ```bash
-# Start all services (db, pgbouncer, redis, meilisearch, backend, frontend, nginx, certbot, db-backup)
+# Start all services (db, pgbouncer, redis, meilisearch, backend, frontend, nginx, db-backup)
 docker compose up -d
 
 # View logs
@@ -21,15 +21,16 @@ docker compose down
 
 | Service | Image | Port | Role |
 |---------|-------|------|------|
-| `db` | postgres:16-alpine | 5432 | Main database (health-checked) |
-| `pgbouncer` | edoburu/pgbouncer | 6432 | Connection pooling (transaction mode, 10 default, 5 min, 100 max client conn) |
+| `db` | postgres:16-alpine | 5432 | Main database (health-checked); `shared_preload_libraries=pg_stat_statements`, `statement_timeout`/`idle_in_transaction_session_timeout` set via command flags |
+| `pgbouncer` | edoburu/pgbouncer (pinned by digest) | 6432 | Connection pooling (transaction mode, 25 default, 5 min, 100 max client conn) |
 | `redis` | redis:7.2-alpine | 6379 | Cache, BullMQ, Socket.io, SSE pub/sub; **512mb, noeviction** |
 | `meilisearch` | getmeili/meilisearch:v1.10 | 7700 | Full-text search (512mb limit) |
-| `backend` | From Dockerfile | 3066 | NestJS API |
-| `frontend` | From Dockerfile | 3000 | Next.js 15 frontend |
-| `nginx` | nginx:1.27-alpine | 8081 | Rate-limit, route, microcache |
-| `certbot` | certbot/certbot | — | Let's Encrypt renewal (webroot mode) |
-| `db-backup` | prodrigestivill/postgres-backup-local:16 | — | Daily gzip dumps to ./backups |
+| `backend` | From Dockerfile | 3066 | NestJS API, runs as a non-root user |
+| `frontend` | From Dockerfile | 3000 | Next.js 15 frontend, runs as a non-root user |
+| `nginx` | nginx:1.27-alpine | 8081 | Rate-limit, route, microcache; master runs root (standard for this image), workers drop to `nginx` (`user nginx;` in nginx.conf) |
+| `db-backup` | prodrigestivill/postgres-backup-local:16 | — | Daily gzip dumps to `./backups`, `umask 0077` (dirs 700 / files 600) |
+
+Every service sets `mem_limit`/`cpus` and json-file log rotation (`max-size: 10m`, `max-file: 3`) — this host runs ~10 other projects, so an unbounded leak (e.g. a stuck Playwright/Chromium process in the scraper fallback) must not be able to starve the rest of the machine.
 
 ## Environment Configuration
 
@@ -38,20 +39,51 @@ Root `.env` file (checked into version control but **DO NOT commit secrets**):
 ### Database & Pooling
 
 ```env
+# REQUIRED — db/pgbouncer/db-backup refuse to boot if unset (no insecure
+# default). Use `-hex`, NOT `-base64`: a base64 password can contain `/` or
+# `+`, which corrupts the DATABASE_URL/DIRECT_URL below (the password is
+# embedded directly in a postgresql:// URL).
+POSTGRES_PASSWORD=<strong password, e.g. openssl rand -hex 32>
 # Host dev: direct to Postgres. Docker/prod: point DATABASE_URL at pgBouncer.
-DATABASE_URL=postgresql://shopee_review:shopee_review_dev@pgbouncer:6432/shopee_review?pgbouncer=true&connection_limit=1
+# No per-connection `options=-c statement_timeout=...` here (L5) — tried and
+# verified NOT to work through pgBouncer in transaction-pooling mode (it
+# silently drops the parameter instead of forwarding it; see the
+# "Postgres role rotation" section's statement_timeout caveat). One generous
+# global value on the `db` service's command flags covers this path too.
+DATABASE_URL=postgresql://shopee_review_app:<same password as POSTGRES_PASSWORD>@pgbouncer:6432/shopee_review?pgbouncer=true&connection_limit=15
 # Non-pooled for migrations (Prisma directUrl). Always points to Postgres.
-DIRECT_URL=postgresql://shopee_review:shopee_review_dev@db:5432/shopee_review
+DIRECT_URL=postgresql://shopee_review_app:<same password as POSTGRES_PASSWORD>@db:5432/shopee_review
 ```
+
+> **Two Postgres roles, one password.** `shopee_review` is the bootstrap
+> superuser the official `postgres` image creates on first init (from
+> `POSTGRES_USER`) — nothing in this stack connects as it after that. The app,
+> pgBouncer and db-backup all connect as `shopee_review_app`, created by
+> `postgres/init/01-app-role.sh` and made the database's owner — **not** a
+> superuser. Postgres hard-blocks stripping `SUPERUSER` from the bootstrap
+> role itself ("the bootstrap user must have the SUPERUSER attribute"), which
+> is why this needs a second role rather than demoting the first one. Both
+> share `POSTGRES_PASSWORD` for simplicity. See "Postgres role rotation" below
+> for applying this to an already-running database.
 
 ### Ports & TLS
 
 ```env
 PORT=3066                      # Backend port
-DOMAIN=shopee.review           # Traefik domain (production)
+DOMAIN=shopee.review           # Coolify's Traefik routes Host($DOMAIN) + www.$DOMAIN here
 COOKIE_SECURE=true             # HTTPS only (set to false for HTTP dev)
-CERTBOT_EMAIL=admin@example.com # Let's Encrypt notifications
 ```
+
+> **No `CERTBOT_EMAIL`, no certbot container.** Coolify's Traefik (`coolify-proxy`)
+> terminates TLS and issues/renews the Let's Encrypt certificate itself via its
+> `letsencrypt` resolver — this stack's nginx always speaks plain HTTP (see
+> "Nginx Configuration" below). The only prerequisite is DNS: an A record for
+> `shopee.review` (and `www.shopee.review`, which redirects to the apex) must
+> point at this host's public IP before Traefik can complete the ACME
+> HTTP-01 challenge. Until DNS is live, Traefik's HTTPS router for this
+> `Host()` rule will fail to issue a certificate and retry quietly in the
+> background — it does not block the app, which stays reachable over the
+> SSH-tunnel/loopback path described in "Remote development" below.
 
 ### Frontend/API URLs
 
@@ -114,6 +146,8 @@ SHOPEE_AFFILIATE_ID=                            # Optional. If unset, scrape deg
 
 ### Monitoring & Observability
 
+Logs only — no Prometheus, no `/metrics` endpoint, no `MetricsModule`:
+
 ```env
 REDIS_URL=redis://redis:6379                    # Required for BullMQ + Socket.io in Docker/prod
 MEILI_HOST=http://meilisearch:7700              # Meilisearch search engine
@@ -122,7 +156,7 @@ ADMIN_TOKEN=<random-token>                      # Bull Board dashboard auth
 SENTRY_DSN=<backend project DSN>                # Error tracking (no-op if unset)
 NEXT_PUBLIC_SENTRY_DSN=<frontend project DSN>   # Frontend error tracking
 LOG_LEVEL=info                                  # trace|debug|info|warn|error (empty = default per NODE_ENV)
-GRAFANA_PASSWORD=<strong password>              # For docker-compose.monitoring.yml
+GRAFANA_PASSWORD=<strong password>              # For docker-compose.monitoring.yml (Loki datasource only)
 ```
 
 ## First-Admin Bootstrap
@@ -178,7 +212,7 @@ PII scrubbing is on by default (cookies, auth headers stripped in `beforeSend`).
 
 ## Nginx Configuration
 
-Single entrypoint for rate-limiting, microcaching, WebSocket proxying, and routing.
+Single entrypoint for rate-limiting, microcaching, WebSocket proxying, and routing. Nginx only ever speaks plain HTTP — Coolify's Traefik terminates real TLS in front of it and forwards over the private `coolify` Docker network, so `Strict-Transport-Security` is set unconditionally in `nginx/conf.d/app.conf` (every client that sees it really did arrive over HTTPS). There is no ACME webroot location and no `app-tls.conf` variant: TLS is entirely Traefik's responsibility, not nginx's.
 
 **Rate-limiting zones** (per client IP):
 - General API (`/api/*`): 10/s
@@ -190,7 +224,6 @@ Single entrypoint for rate-limiting, microcaching, WebSocket proxying, and routi
 
 | Route | Target | Notes |
 |-------|--------|-------|
-| `/.well-known/acme-challenge/*` | Local webroot | Let's Encrypt validation (no redirect, plain HTTP) |
 | `/socket.io/*` | Backend:3066 | WebSocket, no buffering |
 | `/api/notifications/stream` | Backend:3066 | SSE, no buffering, 1h timeout |
 | `/api/auth/*` | Backend:3066 | Strict rate-limit (5/m) |
@@ -198,11 +231,10 @@ Single entrypoint for rate-limiting, microcaching, WebSocket proxying, and routi
 | `/api/*` | Backend:3066 | General API, 2s microcache for unauthenticated GET |
 | `/admin/queues` | Backend:3066 | Bull Board dashboard (auth enforced in app) |
 | `/r/:postId` | Backend:3066 | Click tracking redirect |
-| `/metrics` | Backend:3066 | Prometheus metrics (restricted to private IPs: 127.0.0.1, 172.16.0.0/12, 10.0.0.0/8) |
 | `/_next/static/*` | Frontend:3000 | Next.js static (long cache: 60m cache, 1y expires) |
 | `/*` | Frontend:3000 | Fallback to frontend |
 
-**TLS**: Traefik handles Let's Encrypt via ACME http-01 (certbot renewal every 12h). Edit `nginx/conf.d/app-tls.conf.disabled` → rename to `app.conf` to enable HSTS and redirect HTTP → HTTPS.
+**TLS**: entirely Coolify Traefik's job — it issues/renews the Let's Encrypt certificate via its `letsencrypt` resolver and terminates HTTPS before traffic ever reaches this stack. Nginx has no TLS config of its own; `docker-compose.yml`'s `nginx` labels declare the `Host()` routers (apex + `www` redirect) that Traefik reads.
 
 ## Health Checks
 
@@ -227,14 +259,39 @@ curl http://localhost:7700/health
 
 ## Backup & Restore
 
-**Automated daily backups** (via db-backup service):
+**Automated daily backups** (via db-backup service): `umask 0077` wraps the container's entrypoint, so every dump lands `600` and every directory it creates under `./backups` lands `700` (the image itself has no mode/permission env var — PII such as emails and bcrypt hashes was previously world-readable at `644`). One-time setup on a host that doesn't already have the directory:
+
+```bash
+mkdir -p backups && chmod 700 backups
+```
+
 ```bash
 # Dumps are in ./backups on the host
 ls -la ./backups/
 
-# Restore from latest
+# Restore from latest (onto the LIVE db — only for an actual disaster recovery)
 gunzip -c ./backups/last/<file>.sql.gz | docker compose exec -T db psql -U shopee_review -d shopee_review
 ```
+
+**Restore-test (monthly drill)** — verifies a backup is actually restorable, against a disposable container, never the live DB:
+
+```bash
+docker run --rm -d --name pg-restore-test \
+  -e POSTGRES_USER=shopee_review -e POSTGRES_PASSWORD=restore-test -e POSTGRES_DB=shopee_review \
+  postgres:16-alpine
+sleep 5
+gunzip -c backups/daily/<file>.sql.gz \
+  | docker exec -i pg-restore-test psql -U shopee_review -d shopee_review -v ON_ERROR_STOP=1 -q
+docker exec pg-restore-test psql -U shopee_review -d shopee_review -c \
+  "SELECT (SELECT count(*) FROM users) AS users, (SELECT count(*) FROM posts) AS posts;"
+docker rm -f pg-restore-test
+```
+
+**Offsite backups are a follow-up, not yet built.** `./backups` lives on the
+same disk as everything else (`archive_mode=off`, so RPO is up to 24h with no
+PITR). Cloudflare R2 credentials already exist for uploads — the natural next
+step is an `rclone`/`aws s3 sync` cron pushing `./backups` to a private R2
+bucket, encrypted at rest.
 
 ## Database Migrations
 
@@ -251,6 +308,131 @@ docker compose exec backend pnpm --filter @app/database db:migrate:deploy
 docker compose exec backend pnpm --filter @app/database db:introspect
 ```
 
+## Postgres Role Rotation (rolling a live DB onto the non-superuser setup)
+
+A fresh `docker compose up -d db` (empty `pgdata` volume) already gets this for
+free: `postgres/init/01-app-role.sh` runs once, creates `pg_stat_statements`,
+creates `shopee_review_app` (`NOSUPERUSER`), and makes it the database owner —
+and since PostgreSQL 15, a fresh database's `public` schema is owned by the
+pseudo-role `pg_database_owner` (always resolving to whoever owns the
+database), so that one `ALTER DATABASE ... OWNER TO` is enough for a brand-new
+volume.
+
+**On an already-running database this does NOT work.** `docker-entrypoint-
+initdb.d` scripts only run against a brand-new data directory, and on the live
+server today every table, sequence, materialized view, and the `public`
+schema itself are all still owned by `shopee_review` (the bootstrap
+superuser) — `ALTER DATABASE ... OWNER TO shopee_review_app` only changes who
+owns the *database object*, not any of the tables inside it, so
+`shopee_review_app` would get `permission denied` on its very first query and
+`prisma migrate deploy` would fail outright (pre-deploy review C2 — confirmed
+against the live DB). In-place ownership rotation (`REASSIGN OWNED BY` /
+per-object `ALTER TABLE ... OWNER TO`) is possible in principle, but this
+app's data is disposable seed data, so the simpler and more certain path is:
+dump the data, stand up a brand-new (and therefore correctly-owned) volume,
+and restore into it.
+
+**Do not run these against the live stack without a human explicitly approving
+it first** — this is a maintenance-window operation (the stack is down for
+the dump→restore gap) and changes the role the whole app authenticates as.
+This exact sequence was rehearsed end-to-end against a copy of the live data
+in a disposable dev stack before being written here — see the pre-deploy-fixes
+report for the rehearsal transcript.
+
+```bash
+# 0. If .env has no POSTGRES_PASSWORD yet (pre-deploy review C3 — true on live
+#    today), generate one now. Use `-hex`, NOT `-base64` (C4): a base64 password
+#    can contain `/` or `+`, which corrupts DATABASE_URL/DIRECT_URL (they embed
+#    the password directly in a postgresql:// URL, where `/` is a path
+#    separator and `+` can be interpreted during URL decoding).
+openssl rand -hex 32   # → paste into .env as POSTGRES_PASSWORD
+
+# 1. Backup first (always), AND read-only — pg_dump takes no locks that block
+#    writers and changes nothing in the database. Custom format (-Fc): smaller,
+#    supports --no-owner/--no-acl on restore (below), and is what pg_restore
+#    (not plain psql) consumes.
+docker compose exec -T db pg_dump -U shopee_review -d shopee_review -Fc \
+  > backups/manual/pre-role-rotation-$(date +%Y%m%d-%H%M%S).dump
+
+# 2. Take the stack down. The dump above already captured a consistent
+#    snapshot, so this gap is the only real downtime window.
+docker compose down
+
+# 3. Remove ONLY the Postgres volume — pgdata is what carries the old
+#    ownership forward; redis/meili volumes are disposable cache/index state
+#    the backend already knows how to rebuild (reindexAll, cache repopulation)
+#    and don't need to be touched.
+docker volume rm shopeereview_pgdata
+
+# 4. Bring up just `db` on the new (empty) volume. This is the normal boot
+#    path, not a special case: 01-app-role.sh runs automatically against the
+#    brand-new data directory, creates shopee_review_app LOGIN with
+#    POSTGRES_PASSWORD from .env, NOSUPERUSER, and makes it the database AND
+#    (via pg_database_owner) the public schema owner.
+docker compose up -d db
+docker compose exec -T db pg_isready -U shopee_review
+
+# 5. Restore AS shopee_review_app (not the bootstrap superuser) so every
+#    restored object is owned by it from the moment it's created — no
+#    separate ownership-transfer step needed. --no-owner/--no-acl: skip the
+#    dump's recorded "owned by shopee_review" / grant statements, which would
+#    otherwise try to re-assign ownership back to a role this restore
+#    connection doesn't have privileges to reassign to/from anyway.
+docker compose exec -T db pg_restore --no-owner --no-acl \
+  -U shopee_review_app -d shopee_review \
+  < backups/manual/pre-role-rotation-<timestamp>.dump
+
+# 6. Start the rest of the stack. The backend's entrypoint runs
+#    `prisma migrate deploy` as shopee_review_app (DIRECT_URL) before serving
+#    traffic — this applies any migration newer than the dump (at minimum the
+#    two from this fix: moderation levels/soft delete/indexes, and the
+#    notification ordering index) using the now-correctly-owned schema.
+docker compose up -d
+
+# 7. Verify (see the three checks below): shopee_review_app is NOT a
+#    superuser, owns every relation, and the app actually serves data.
+```
+
+Verification queries:
+
+```sql
+-- (a) Not a superuser.
+SELECT rolname, rolsuper FROM pg_roles WHERE rolname = 'shopee_review_app';
+
+-- (b) Every table/index/sequence/materialized view is owned by it (empty
+--     result = fully rotated; anything listed here is still
+--     shopee_review-owned and would 403 the app on that object).
+SELECT relname, relkind, pg_get_userbyid(relowner) AS owner
+FROM pg_class
+WHERE relnamespace = 'public'::regnamespace
+  AND relkind IN ('r', 'i', 'S', 'm')
+  AND pg_get_userbyid(relowner) <> 'shopee_review_app';
+```
+
+```bash
+# (c) db-backup (also connects as shopee_review_app) can actually dump.
+docker compose exec -T db-backup /backup.sh && echo OK
+```
+
+**Caveat** (L5): `statement_timeout=60000` (60s, set globally on the `db`
+service's command flags) applies to EVERY connection on `shopee_review_app` —
+API queries through pgBouncer, `pg_dump`/`pg_restore` (step 1/5 above and the
+daily db-backup job), and `prisma migrate deploy` alike. One value for every
+path, not a tighter one for the hot API path, because the tighter alternative
+doesn't actually work: a per-connection override via DATABASE_URL's
+`options=-c statement_timeout=...` was tried and verified in the pre-deploy
+rehearsal to have no effect through pgBouncer in transaction-pooling mode —
+listing `options` in pgBouncer's `ignore_startup_parameters` stops it
+erroring on the parameter, but the parameter is then genuinely dropped, not
+forwarded to the real Postgres session (`SHOW statement_timeout` on a
+connection made through pgBouncer with that option set still showed the
+server's global default). 60s is generous enough not to abort a backup or
+migration at the current (seed-sized) data volume; if a table grows large
+enough that a single backup `COPY` or migration step would exceed it, raise
+it (`ALTER ROLE shopee_review_app SET statement_timeout = '...'` persists
+past restarts, or bump the `db` service's `-c statement_timeout=...` command
+flag) rather than reaching for the per-connection `options=` approach again.
+
 ## Scaling
 
 - **Backend**: Stateless; can run multiple instances behind a load balancer. Redis must be shared for cache coherence + BullMQ job state.
@@ -258,6 +440,31 @@ docker compose exec backend pnpm --filter @app/database db:introspect
 - **Database**: PostgreSQL replication (setup beyond this guide); always use DIRECT_URL for migrations.
 - **Redis**: Single instance with persistence (appendonly yes, appendfsync everysec). Ensure `--maxmemory-policy noeviction` to prevent silent BullMQ job loss.
 - **Meilisearch**: Single instance; index syncs via API calls from the backend.
+
+## Remote Development (editing on a laptop, running on the server)
+
+The server is the source of truth: `docker-compose.yml` publishes only
+`127.0.0.1:8081` (nginx) and `127.0.0.1:65432` (Postgres) — backend (3066) and
+frontend (3000) are `expose`d on the compose network only, never bound to the
+host. That means a host-side `pnpm --filter @app/backend dev` on the server
+does **not** conflict with the running containers (different listener, same
+port number is fine since the container never claimed it on the host). To
+reach it from a laptop:
+
+```bash
+# From your laptop:
+ssh -L 3066:127.0.0.1:3066 -L 3000:127.0.0.1:3000 -L 8081:127.0.0.1:8081 <host>
+# Then on the SERVER (same session or another), run the dev servers directly:
+pnpm --filter @app/backend dev     # binds host-side 3066
+pnpm --filter @app/frontend dev    # binds host-side 3000 (proxies /api in dev)
+# Point DATABASE_URL at 127.0.0.1:65432 (already published) for either process.
+```
+
+Prefer editing on the server over editing via one-off SSH commands and
+forgetting to commit — `.dockerignore`'s `**/node_modules` fix shipped this
+way once (fixed locally here, was already applied uncommitted on the server).
+If you do edit directly on the server, commit from there (or `git diff` → copy
+back) before the next `rsync --delete` from the laptop overwrites it.
 
 ## Troubleshooting
 

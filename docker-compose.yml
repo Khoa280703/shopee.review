@@ -1,17 +1,62 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: shopee_review
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopee_review_dev}
+      # No insecure default: a weak password is how INFRA-C1/H2 of the prior
+      # audits happened (app ran as a public-facing superuser with the dev
+      # password). Generate with `openssl rand -hex 32`.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (set a strong password in .env, e.g. openssl rand -hex 32)}
       POSTGRES_DB: shopee_review
+    # idle_in_transaction_session_timeout: bound an abandoned interactive
+    # transaction to a pooled connection instead of holding it forever (there
+    # are only DEFAULT_POOL_SIZE=25 server slots).
+    # statement_timeout: ONE global 60s value (L5), not a tighter per-path
+    # override. A per-connection override via DATABASE_URL's `options=-c
+    # statement_timeout=...` was tried and verified NOT to work through
+    # pgbouncer in transaction-pooling mode (confirmed empirically in the
+    # pre-deploy rehearsal, matches pgbouncer's own issue tracker: listing
+    # `options` in ignore_startup_parameters stops pgbouncer erroring on it,
+    # but the parameter is then genuinely dropped, not forwarded to the real
+    # Postgres session — `SHOW statement_timeout` through pgbouncer still
+    # showed the server default regardless of what the client sent). So this
+    # one value has to cover every path (API queries AND migrations AND
+    # pg_dump/pg_restore, all as shopee_review_app) — 60s is generous enough
+    # not to abort a migration or backup at the current (seed-sized) data
+    # volume; see this same comment's counterpart in docs/deployment-guide.md
+    # if that data volume grows enough to need raising it.
+    # pg_stat_statements: preloaded here (GUC requires a restart to take effect);
+    # the extension itself is created once by postgres/init/01-app-role.sql.
+    command: >-
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
+      -c statement_timeout=60000
+      -c idle_in_transaction_session_timeout=30000
     # Bound to loopback only: never publish the database on a public interface.
     # Prod overrides POSTGRES_PASSWORD via gitignored .env with a fresh volume.
     ports:
       - "127.0.0.1:65432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Runs once against a brand-new (empty) volume: creates pg_stat_statements
+      # and a second, non-superuser role (shopee_review_app) that owns the
+      # database — Postgres refuses to strip SUPERUSER from the bootstrap role
+      # itself ("the bootstrap user must have the SUPERUSER attribute",
+      # verified empirically), so that role is simply never used again after
+      # this script runs. See docs/deployment-guide.md "Postgres role
+      # rotation" for migrating an already-running (live) database to this.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    mem_limit: 512m
+    cpus: 1.0
+    logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U shopee_review"]
       interval: 5s
@@ -36,6 +81,9 @@ services:
       --appendfsync everysec
     volumes:
       - redis-data:/data
+    mem_limit: 640m
+    cpus: 0.5
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -44,13 +92,18 @@ services:
     # Not published to host in prod; reachable on the compose network as redis:6379.
 
   pgbouncer:
-    image: edoburu/pgbouncer:latest
+    # Pinned by digest (`edoburu/pgbouncer` only ships a moving `:latest` tag).
+    # This is the exact image already running in prod (pgbouncer 1.25.2).
+    image: edoburu/pgbouncer@sha256:4c1ca296ef525f108f5d3552cc337c0c09587cf8dae7f0067fd93349e47dc1cd
     restart: unless-stopped
     environment:
       DB_HOST: db
       DB_PORT: "5432"
-      DB_USER: shopee_review
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-shopee_review_dev}
+      # Non-superuser, database-owner role (created by postgres/init/01-app-
+      # role.sh) — never the bootstrap superuser named by the db service's
+      # POSTGRES_USER.
+      DB_USER: shopee_review_app
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (set a strong password in .env, e.g. openssl rand -hex 32)}
       DB_NAME: shopee_review
       LISTEN_PORT: "6432"
       POOL_MODE: transaction
@@ -66,6 +119,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    mem_limit: 128m
+    cpus: 0.3
+    logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U shopee_review || exit 1"]
       interval: 10s
@@ -80,12 +136,19 @@ services:
   db-backup:
     image: prodrigestivill/postgres-backup-local:16
     restart: unless-stopped
+    # `umask 0077` before the image's default entrypoint so every directory it
+    # creates under /backups lands 700 and every dump file lands 600 (the
+    # backup image itself has no umask/mode env var — PII, email + bcrypt
+    # hashes, otherwise land world-readable, as the infra audit found).
+    command: ["/bin/sh", "-c", "umask 0077 && exec /init.sh"]
     environment:
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       POSTGRES_DB: shopee_review
-      POSTGRES_USER: shopee_review
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopee_review_dev}
+      # Same non-superuser, database-owner role the app connects as — pg_dump
+      # only needs ownership of what it's dumping, not SUPERUSER.
+      POSTGRES_USER: shopee_review_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (set a strong password in .env, e.g. openssl rand -hex 32)}
       SCHEDULE: "@daily"
       BACKUP_KEEP_DAYS: "7"
       BACKUP_KEEP_WEEKS: "4"
@@ -93,6 +156,9 @@ services:
       HEALTHCHECK_PORT: "8080"
     volumes:
       - ./backups:/backups
+    mem_limit: 256m
+    cpus: 0.3
+    logging: *default-logging
     depends_on:
       db:
         condition: service_healthy
@@ -114,8 +180,13 @@ services:
       # all, so one slow query (MV refresh, retention delete) would block every API
       # call. Kept <= pgBouncer DEFAULT_POOL_SIZE (25) so clients never queue for a
       # server connection.
-      DATABASE_URL: postgresql://shopee_review:${POSTGRES_PASSWORD:-shopee_review_dev}@pgbouncer:6432/shopee_review?pgbouncer=true&connection_limit=15
-      DIRECT_URL: postgresql://shopee_review:${POSTGRES_PASSWORD:-shopee_review_dev}@db:5432/shopee_review
+      # statement_timeout (L5) is NOT set per-connection here — see the `db`
+      # service's statement_timeout comment for why (verified: PgBouncer in
+      # transaction-pooling mode accepts but silently drops a `options=-c
+      # statement_timeout=...` startup parameter, so it has no effect). One
+      # generous 60s global value on the `db` service covers this path too.
+      DATABASE_URL: postgresql://shopee_review_app:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (set a strong password in .env, e.g. openssl rand -hex 32)}@pgbouncer:6432/shopee_review?pgbouncer=true&connection_limit=15
+      DIRECT_URL: postgresql://shopee_review_app:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (set a strong password in .env, e.g. openssl rand -hex 32)}@db:5432/shopee_review
       REDIS_URL: redis://redis:6379
       MEILI_HOST: http://meilisearch:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterKeyChangeMe}
@@ -156,6 +227,12 @@ services:
         condition: service_healthy
     expose:
       - "3066"
+    # 1.5GB headroom: Node + the Playwright/Chromium scrape fallback (the
+    # scraper is API-first; Chromium only launches when Shopee's API path
+    # fails) on a host shared with ~10 other projects.
+    mem_limit: 1536m
+    cpus: 1.5
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3066/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
@@ -183,6 +260,9 @@ services:
       - backend
     expose:
       - "3000"
+    mem_limit: 512m
+    cpus: 1.0
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
@@ -206,36 +286,49 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/snippets:/etc/nginx/snippets:ro
       - nginx-cache:/var/cache/nginx
-      - ./nginx/certbot/www:/var/www/certbot:ro
+    # worker_connections (nginx.conf) is 4096; the container's default soft
+    # nofile limit (1024) is lower, so nginx logged a startup warning and would
+    # hit "too many open files" well before the configured connection ceiling.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *default-logging
     networks:
       - default
       - coolify
     labels:
       traefik.enable: "true"
       traefik.docker.network: "coolify"
-      # HTTP → redirect to HTTPS (Traefik handles TLS via Let's Encrypt)
+      # Apex domain: HTTP → HTTPS redirect; HTTPS serves the app. Traefik (via
+      # Coolify) terminates TLS and issues/renews the Let's Encrypt cert through
+      # its own `letsencrypt` resolver — no certbot container in this stack.
       traefik.http.routers.shopeereview-http.entryPoints: "http"
-      traefik.http.routers.shopeereview-http.rule: "Host(`${DOMAIN:-localhost}`)"
-      traefik.http.routers.shopeereview-http.middlewares: "redirect-to-https"
+      traefik.http.routers.shopeereview-http.rule: "Host(`${DOMAIN:-shopee.review}`)"
+      traefik.http.routers.shopeereview-http.middlewares: "shopeereview-redirect-https"
       traefik.http.routers.shopeereview-https.entryPoints: "https"
-      traefik.http.routers.shopeereview-https.rule: "Host(`${DOMAIN:-localhost}`)"
+      traefik.http.routers.shopeereview-https.rule: "Host(`${DOMAIN:-shopee.review}`)"
       traefik.http.routers.shopeereview-https.tls: "true"
       traefik.http.routers.shopeereview-https.tls.certresolver: "letsencrypt"
       traefik.http.services.shopeereview.loadbalancer.server.port: "80"
+      # www → redirect to the apex domain (both HTTP and HTTPS entrypoints).
+      traefik.http.routers.shopeereview-www-http.entryPoints: "http"
+      traefik.http.routers.shopeereview-www-http.rule: "Host(`www.${DOMAIN:-shopee.review}`)"
+      traefik.http.routers.shopeereview-www-http.middlewares: "shopeereview-www-redirect"
+      traefik.http.routers.shopeereview-www-https.entryPoints: "https"
+      traefik.http.routers.shopeereview-www-https.rule: "Host(`www.${DOMAIN:-shopee.review}`)"
+      traefik.http.routers.shopeereview-www-https.tls: "true"
+      traefik.http.routers.shopeereview-www-https.tls.certresolver: "letsencrypt"
+      traefik.http.routers.shopeereview-www-https.middlewares: "shopeereview-www-redirect"
+      traefik.http.middlewares.shopeereview-redirect-https.redirectscheme.scheme: "https"
+      traefik.http.middlewares.shopeereview-www-redirect.redirectregex.regex: "^https?://www\\.(.+)"
+      traefik.http.middlewares.shopeereview-www-redirect.redirectregex.replacement: "https://$${1}"
+      traefik.http.middlewares.shopeereview-www-redirect.redirectregex.permanent: "true"
     depends_on:
       - frontend
       - backend
-
-  # Certbot issues/renews Let's Encrypt certs via the ACME http-01 webroot.
-  # First issuance is manual (see nginx/conf.d/app-tls.conf.disabled); after
-  # that this container renews every 12h and exits-retry on failure.
-  certbot:
-    image: certbot/certbot:latest
-    restart: unless-stopped
-    volumes:
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
-    entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
 
   # ---------------------------------------------------------------------------
   # Phase 6 — Meilisearch (primary search; PG FTS is the fallback).
@@ -250,6 +343,8 @@ services:
     volumes:
       - meili-data:/meili_data
     mem_limit: 512m
+    cpus: 1.0
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:7700/health"]
       interval: 10s
