@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { buttonClasses } from '@/components/ui/button-classes';
 import { authApi, moderationApi, uploadImage, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/components/providers/toast-provider';
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { cn } from '@/lib/cn';
 import type { AuthSession } from '@/types';
@@ -22,6 +23,7 @@ export default function SettingsPage() {
   const locale = useLocale();
   const { user, loading, refresh, setUser } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [tab, setTab] = useState<SettingsTab>('profile');
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
@@ -54,25 +56,46 @@ export default function SettingsPage() {
   }, [user, loading, router]);
 
   async function unblock(username: string) {
-    await moderationApi.unblock(username);
-    setBlocked((prev) => prev.filter((b) => b.username !== username));
+    try {
+      await moderationApi.unblock(username);
+      setBlocked((prev) => prev.filter((b) => b.username !== username));
+    } catch {
+      toast(t('actionFailed'), 'error');
+    }
   }
 
   async function revokeSession(id: string) {
-    await authApi.revokeSession(id);
-    setSessions((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await authApi.revokeSession(id);
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+    } catch {
+      toast(t('actionFailed'), 'error');
+    }
   }
 
   async function revokeOtherSessions() {
-    await authApi.revokeOtherSessions();
-    setSessions((prev) => prev.filter((s) => s.current));
+    try {
+      await authApi.revokeOtherSessions();
+      setSessions((prev) => prev.filter((s) => s.current));
+    } catch {
+      toast(t('actionFailed'), 'error');
+    }
   }
 
   async function onAvatar(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const { url } = await uploadImage(file);
-    setAvatarUrl(url);
+    try {
+      const { url } = await uploadImage(file);
+      setAvatarUrl(url);
+    } catch {
+      toast(t('avatarUploadFailed'), 'error');
+    } finally {
+      // Allow re-selecting the same file (e.g. after a failed upload) —
+      // without this the browser won't fire onChange again for an unchanged
+      // file list.
+      e.target.value = '';
+    }
   }
 
   async function save(e: React.FormEvent) {
@@ -195,7 +218,7 @@ export default function SettingsPage() {
 
       {tab === 'security' && (
       <form onSubmit={changePassword} className="space-y-4 rounded-xl border border-outline-variant p-4">
-        <h2 className="font-title-md text-title-md font-semibold text-on-surface">{t('changePassword')}</h2>
+        <h2 className="font-headline-md text-headline-md font-semibold text-on-surface">{t('changePassword')}</h2>
         <div>
           <label className="mb-1 block text-body-sm font-medium text-on-surface">{t('currentPassword')}</label>
           <Input
@@ -224,7 +247,7 @@ export default function SettingsPage() {
 
       {tab === 'privacy' && (
       <div className="rounded-xl border border-outline-variant p-4">
-        <h2 className="font-title-md text-title-md font-semibold text-on-surface">{t('blockedUsers')}</h2>
+        <h2 className="font-headline-md text-headline-md font-semibold text-on-surface">{t('blockedUsers')}</h2>
         {blocked.length === 0 ? (
           <p className="mt-2 text-body-sm text-on-surface-variant">{t('noBlockedUsers')}</p>
         ) : (
@@ -250,7 +273,7 @@ export default function SettingsPage() {
       {tab === 'security' && (
       <div className="mt-4 rounded-xl border border-outline-variant p-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-title-md text-title-md font-semibold text-on-surface">{t('sessions')}</h2>
+          <h2 className="font-headline-md text-headline-md font-semibold text-on-surface">{t('sessions')}</h2>
           {sessions.filter((s) => !s.current).length > 0 && (
             <button
               onClick={() => void revokeOtherSessions()}
@@ -290,7 +313,7 @@ export default function SettingsPage() {
 
       {tab === 'account' && (
       <div className="rounded-xl border border-error/40 bg-error/5 p-4">
-        <h2 className="font-title-md text-title-md font-semibold text-error">{t('dangerZone')}</h2>
+        <h2 className="font-headline-md text-headline-md font-semibold text-error">{t('dangerZone')}</h2>
         <p className="mt-1 text-body-sm text-on-surface-variant">
           {t('deleteAccountWarning')}
         </p>

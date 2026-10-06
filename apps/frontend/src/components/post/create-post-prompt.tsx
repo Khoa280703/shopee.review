@@ -1,19 +1,21 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { IconButton } from '@/components/ui/icon-button';
 import { buttonClasses } from '@/components/ui/button-classes';
 import { useAuth } from '@/lib/auth-context';
+import { loginHref } from '@/lib/login-href';
 
 export function CreatePostPrompt() {
   const t = useTranslations('create');
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   function go() {
-    router.push(user ? '/create' : '/auth/login');
+    router.push(user ? '/create' : loginHref(pathname));
   }
 
   return (

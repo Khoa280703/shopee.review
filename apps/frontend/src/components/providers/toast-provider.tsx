@@ -31,11 +31,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[100] flex flex-col items-center gap-2 px-4 lg:bottom-6">
+      {/* bottom-20 (80px) clears the mobile bottom nav (h-16 = 64px, plus its
+          own safe-area padding) — it used to sit at bottom-4 and render
+          underneath the nav bar, half-hidden (FE audit M19). Desktop has no
+          bottom nav so it sits closer to the edge. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[100] flex flex-col items-center gap-2 px-4 lg:bottom-6">
         {toasts.map((t) => (
           <div
             key={t.id}
-            role="status"
+            role={t.kind === 'error' ? 'alert' : 'status'}
             className={cn(
               'pointer-events-auto max-w-sm rounded-full px-4 py-2 text-body-sm font-medium shadow-lg',
               t.kind === 'success' && 'bg-primary text-on-primary',

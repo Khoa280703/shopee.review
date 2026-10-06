@@ -1,10 +1,11 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { socialApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { loginHref } from '@/lib/login-href';
 import { cn } from '@/lib/cn';
 
 interface Props {
@@ -19,6 +20,7 @@ export function FollowButton({ username, initialFollowing, className }: Props) {
   const t = useTranslations('social');
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const key = ['followStatus', username];
   const hasServerState = initialFollowing !== undefined;
@@ -57,7 +59,7 @@ export function FollowButton({ username, initialFollowing, className }: Props) {
 
   function toggle() {
     if (!user) {
-      router.push('/auth/login');
+      router.push(loginHref(pathname));
       return;
     }
     mutate(!following);
@@ -69,6 +71,7 @@ export function FollowButton({ username, initialFollowing, className }: Props) {
     <button
       onClick={toggle}
       disabled={isPending}
+      aria-pressed={following}
       className={cn(
         'inline-flex h-9 items-center justify-center rounded-full px-5 text-body-sm font-bold transition disabled:opacity-60',
         following

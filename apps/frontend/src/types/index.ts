@@ -42,6 +42,12 @@ export interface Post {
   updatedAt?: string;
   user: UserSummary;
   category?: Category | null;
+  // Present (even as `null`/`false`) only when the backend saw an
+  // authenticated viewer — lets a batch-fetched list seed each post's own
+  // ReactionButton/BookmarkButton without the N+1 per-post status fetch
+  // (FE audit H5). `undefined` means "ask the component to fetch its own".
+  viewerReaction?: 'LIKE' | 'LOVE' | 'HAHA' | 'WOW' | 'SAD' | 'ANGRY' | null;
+  bookmarked?: boolean;
 }
 
 export interface UserProfile {
@@ -86,6 +92,9 @@ export interface Comment {
   user: UserSummary;
   replies?: Comment[];
   replyCount?: number;
+  /** True when this (top-level) comment was soft-deleted but still has live
+   * replies — rendered as a placeholder instead of being hidden (M2). */
+  isDeleted?: boolean;
 }
 
 export type NotificationType = 'LIKE' | 'COMMENT' | 'FOLLOW' | 'MENTION' | 'NEW_POST';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@/components/ui/icon';
@@ -9,10 +9,17 @@ import { socialApi, type ReactionKind } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/cn';
 import { formatNumber } from '@/lib/format';
+import { loginHref } from '@/lib/login-href';
 
 interface Props {
   postId: number;
   initialCount: number;
+  // Backend-provided viewer state (feed/list payloads — FE audit H5). When
+  // present (even `null`), the component trusts it and skips the per-post
+  // `GET /posts/:id/reactions/me` fetch entirely; when omitted (anonymous
+  // responses, or pages that never attach it) it falls back to fetching its
+  // own status exactly like before.
+  initialReaction?: ReactionKind | null;
   variant?: 'button' | 'icon';
 }
 
@@ -49,10 +56,11 @@ function applyOptimistic(state: ReactionState, type: ReactionKind): ReactionStat
   return { type, counts };
 }
 
-export function ReactionButton({ postId, initialCount, variant = 'button' }: Props) {
+export function ReactionButton({ postId, initialCount, initialReaction, variant = 'button' }: Props) {
   const t = useTranslations('social');
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,15 +89,30 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
     }, 400);
   }
 
+  // Desktop hover opens the picker — but mobile WebKit fires a synthetic
+  // `mouseenter` right before a tap's `click`, which used to open the picker
+  // and swallow the tap as "just opened a menu" instead of toggling LIKE (FE
+  // audit M5). Gating on `pointerType === 'mouse'` makes this exclusively a
+  // real-mouse affordance; touch keeps using the long-press timer above.
+  function onHoverPointerEnter(e: React.PointerEvent) {
+    if (user && e.pointerType === 'mouse') setPickerOpen(true);
+  }
+
+  // `initialReaction !== undefined` means the backend already attached this
+  // viewer's real state to the list/feed payload — trust it and never fetch
+  // (the N+1 fix). Otherwise fall back to the old behavior: placeholderData
+  // (not initialData, which would freeze on a guess) while the real fetch runs.
+  const hasServerState = initialReaction !== undefined;
   const { data } = useQuery<ReactionState>({
     queryKey: key,
     queryFn: () => socialApi.reactionStatus(postId),
-    enabled: !!user,
-    // placeholderData (not initialData): initialData is treated as real, fresh
-    // cache, so the query never fetched and a user's OWN existing reaction wasn't
-    // shown — the first tap then toggled the wrong way. placeholderData renders
-    // the counts immediately but still fetches the real status on mount.
-    placeholderData: { type: null, counts: { LIKE: initialCount } },
+    enabled: !!user && !hasServerState,
+    ...(hasServerState
+      ? {
+          initialData: { type: initialReaction ?? null, counts: { LIKE: initialCount } },
+          staleTime: Infinity,
+        }
+      : { placeholderData: { type: null, counts: { LIKE: initialCount } } }),
   });
 
   const { mutate } = useMutation({
@@ -116,7 +139,7 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
   function pick(type: ReactionKind) {
     setPickerOpen(false);
     if (!user) {
-      router.push('/auth/login');
+      router.push(loginHref(pathname));
       return;
     }
     mutate(type);
@@ -153,7 +176,7 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
     return (
       <div
         className="relative"
-        onMouseEnter={() => user && setPickerOpen(true)}
+        onPointerEnter={onHoverPointerEnter}
         onTouchStart={startLongPress}
         onTouchMove={cancelLongPress}
         onTouchEnd={cancelLongPress}
@@ -166,6 +189,8 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
             current ? 'text-like' : 'hover:text-like',
           )}
           aria-label={t('reactions.ariaLabel')}
+          aria-pressed={current != null}
+          aria-haspopup="true"
         >
           <span className={cn('flex items-center justify-center rounded-full p-2 transition-colors', current ? 'bg-like/10' : 'group-hover:bg-like/10')}>
             {active ? <span className="text-[18px] leading-none">{active.emoji}</span> : <Icon name="favorite" className="text-[20px]" />}
@@ -179,7 +204,7 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
   return (
     <div
       className="relative inline-block"
-      onMouseEnter={() => user && setPickerOpen(true)}
+      onPointerEnter={onHoverPointerEnter}
       onTouchStart={startLongPress}
       onTouchMove={cancelLongPress}
       onTouchEnd={cancelLongPress}
@@ -187,6 +212,8 @@ export function ReactionButton({ postId, initialCount, variant = 'button' }: Pro
       {picker}
       <button
         onClick={onTap}
+        aria-pressed={current != null}
+        aria-haspopup="true"
         className={cn(
           'inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-body-sm font-medium transition',
           current

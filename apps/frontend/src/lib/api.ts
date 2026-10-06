@@ -12,6 +12,7 @@ import type {
   ScrapedProduct,
   UserProfile,
   UserStats,
+  UserSummary,
 } from '@/types';
 
 function baseUrl(isServer: boolean) {
@@ -24,14 +25,41 @@ interface FetchOptions extends RequestInit {
 }
 
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const { isServer = false, revalidate, ...init } = options;
+  // `headers` is pulled out of `init` here (not left for the trailing `...init`
+  // spread below) — otherwise that spread re-adds the UNMERGED original
+  // `init.headers`, silently discarding the Content-Type/Cookie merge just
+  // built below (a real bug: see git history for the "apiFetch header
+  // override trap").
+  const { isServer = false, revalidate, headers: extraHeaders, ...init } = options;
+  const headers: Record<string, string> = {
+    ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(extraHeaders as Record<string, string> | undefined),
+  };
+  // Forward the visitor's own session cookie on SSR calls so viewer-specific
+  // fields (e.g. the profile endpoint's `isFollowing`) are correct on first
+  // paint instead of always rendering as anonymous (FE audit H1). Only set
+  // when a cookie actually exists so anonymous/crawler SSR — the overwhelming
+  // majority of traffic on cached routes like post detail/trending — keeps
+  // using Next's fetch Data Cache untouched below.
+  let forwardedCookie = false;
+  if (isServer) {
+    const { cookies } = await import('next/headers');
+    const cookieHeader = (await cookies()).toString();
+    if (cookieHeader) {
+      headers.Cookie = cookieHeader;
+      forwardedCookie = true;
+    }
+  }
   const res = await fetch(`${baseUrl(isServer)}${path}`, {
     credentials: 'include',
-    headers: {
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init.headers ?? {}),
-    },
+    headers,
     ...(revalidate !== undefined ? { next: { revalidate } } : {}),
+    // A cookie-bearing request is viewer-specific — Next's fetch Data Cache
+    // key doesn't include headers, so caching it (even for a `revalidate`
+    // caller like postsApi.get) would serve one user's response to another.
+    // Default to no-store whenever a cookie went out; `...init` below can
+    // still override it if a caller ever has a deliberate reason to.
+    ...(forwardedCookie ? { cache: 'no-store' as const } : {}),
     ...init,
   });
 
@@ -189,8 +217,15 @@ export const socialApi = {
     apiFetch<{ type: ReactionKind | null; counts: Record<string, number> }>(
       `/posts/${postId}/reactions/me`,
     ),
-  bookmark: (postId: number) =>
-    apiFetch<{ bookmarked: boolean }>(`/posts/${postId}/bookmark`, { method: 'PUT' }),
+  // Idempotent set (not a toggle — FE audit H2): the caller states the
+  // desired end state, so a stale client can never flip it the wrong way.
+  bookmarkStatus: (postId: number) =>
+    apiFetch<{ bookmarked: boolean }>(`/posts/${postId}/bookmark`),
+  setBookmark: (postId: number, bookmarked: boolean) =>
+    apiFetch<{ bookmarked: boolean }>(`/posts/${postId}/bookmark`, {
+      method: 'PUT',
+      body: JSON.stringify({ bookmarked }),
+    }),
   bookmarks: (cursor?: number) =>
     apiFetch<CursorPage<Post>>(`/me/bookmarks${cursor ? `?cursor=${cursor}` : ''}`),
   share: (postId: number) =>
@@ -276,6 +311,34 @@ export interface AdminReport {
   reporter: { username: string; displayName: string };
 }
 
+export interface DeletedPost {
+  id: number;
+  title: string;
+  deletedAt: string;
+  deleteReason: string | null;
+  user: UserSummary;
+  deletedBy: { username: string; displayName: string } | null;
+}
+
+export interface DeletedComment {
+  id: number;
+  content: string;
+  postId: number;
+  deletedAt: string;
+  deleteReason: string | null;
+  user: UserSummary;
+  deletedBy: { username: string; displayName: string } | null;
+}
+
+export interface LockedUser {
+  id: number;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  suspendedAt: string | null;
+  bannedAt: string | null;
+}
+
 export const adminApi = {
   listReports: (status = 'PENDING') =>
     apiFetch<AdminReport[]>(`/admin/reports?status=${status}`),
@@ -284,14 +347,34 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
-  deletePost: (id: number) =>
-    apiFetch<{ success: boolean }>(`/admin/posts/${id}`, { method: 'DELETE' }),
-  deleteComment: (id: number) =>
-    apiFetch<{ success: boolean }>(`/admin/comments/${id}`, { method: 'DELETE' }),
+  deletePost: (id: number, reason?: string) =>
+    apiFetch<{ success: boolean }>(`/admin/posts/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ reason }),
+    }),
+  restorePost: (id: number) =>
+    apiFetch<{ success: boolean }>(`/admin/posts/${id}/restore`, { method: 'POST' }),
+  deleteComment: (id: number, reason?: string) =>
+    apiFetch<{ success: boolean }>(`/admin/comments/${id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ reason }),
+    }),
+  restoreComment: (id: number) =>
+    apiFetch<{ success: boolean }>(`/admin/comments/${id}/restore`, { method: 'POST' }),
+  listDeletedPosts: (cursor?: number) =>
+    apiFetch<CursorPage<DeletedPost>>(`/admin/posts/deleted${cursor ? `?cursor=${cursor}` : ''}`),
+  listDeletedComments: (cursor?: number) =>
+    apiFetch<CursorPage<DeletedComment>>(`/admin/comments/deleted${cursor ? `?cursor=${cursor}` : ''}`),
+  suspendUser: (id: number) =>
+    apiFetch<{ success: boolean }>(`/admin/users/${id}/suspend`, { method: 'POST' }),
+  unsuspendUser: (id: number) =>
+    apiFetch<{ success: boolean }>(`/admin/users/${id}/unsuspend`, { method: 'POST' }),
   banUser: (id: number) =>
     apiFetch<{ success: boolean }>(`/admin/users/${id}/ban`, { method: 'POST' }),
   unbanUser: (id: number) =>
     apiFetch<{ success: boolean }>(`/admin/users/${id}/unban`, { method: 'POST' }),
+  listLockedUsers: (cursor?: number) =>
+    apiFetch<CursorPage<LockedUser>>(`/admin/users/locked${cursor ? `?cursor=${cursor}` : ''}`),
 };
 
 // ---------- Search ----------

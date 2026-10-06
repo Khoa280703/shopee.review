@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { Icon } from '@/components/ui/icon';
@@ -10,9 +10,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { socialApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { loginHref } from '@/lib/login-href';
 import { TimeAgo } from '@/components/ui/time-ago';
 import type { Comment } from '@/types';
 import { useCommentSocket } from './use-comment-socket';
+import { applyCommentDeletion, upsertReply, upsertTopLevelComment } from './comment-utils';
+
+/** Enter should submit, except mid-IME composition (Vietnamese Telex/VNI,
+ * Japanese/Korean input methods all hold a "marked text" state while composing
+ * — committing on that Enter sends an unfinished word). Also guards against a
+ * second Enter firing while the previous submit is still in flight. */
+function isSubmitEnter(e: React.KeyboardEvent, submitting: boolean): boolean {
+  return e.key === 'Enter' && !e.nativeEvent.isComposing && !submitting;
+}
 
 function CommentItem({
   comment,
@@ -23,7 +33,7 @@ function CommentItem({
   isReply = false,
 }: {
   comment: Comment;
-  onReply: (parentId: number, content: string) => Promise<void>;
+  onReply: (parentId: number, content: string) => Promise<boolean>;
   onDelete: (id: number) => Promise<void>;
   onLoadMoreReplies?: (parentId: number) => Promise<void>;
   currentUserId?: number;
@@ -32,6 +42,7 @@ function CommentItem({
   const t = useTranslations('social');
   const [replying, setReplying] = useState(false);
   const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
   const shownReplies = comment.replies?.length ?? 0;
@@ -39,10 +50,20 @@ function CommentItem({
   const remainingReplies = totalReplies - shownReplies;
 
   async function submitReply() {
-    if (!text.trim()) return;
-    await onReply(comment.id, text.trim());
-    setText('');
-    setReplying(false);
+    const value = text.trim();
+    if (!value || submitting) return;
+    setSubmitting(true);
+    try {
+      const ok = await onReply(comment.id, value);
+      // Only clear the box / close it on success (FE audit M3) — on failure
+      // the typed text would otherwise be silently lost, forcing a retype.
+      if (ok) {
+        setText('');
+        setReplying(false);
+      }
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function loadMore() {
@@ -68,30 +89,41 @@ function CommentItem({
               @{comment.user.username} • <TimeAgo date={comment.createdAt} />
             </span>
           </div>
-          <p className="mt-1 whitespace-pre-wrap font-body-md text-body-sm text-on-surface">{comment.content}</p>
-          <div className="mt-1 flex gap-lg text-on-surface-variant">
-            {!isReply && (
-              <button onClick={() => setReplying((v) => !v)} className="flex items-center gap-xs text-label-caps hover:text-tertiary">
-                <Icon name="chat_bubble" className="text-[14px]" /> {t('comments.reply')}
-              </button>
-            )}
-            {currentUserId === comment.userId && (
-              <button onClick={() => onDelete(comment.id)} className="flex items-center gap-xs text-label-caps hover:text-error">
-                <Icon name="delete" className="text-[14px]" /> {t('comments.delete')}
-              </button>
-            )}
-          </div>
+          <p
+            className={
+              comment.isDeleted
+                ? 'mt-1 whitespace-pre-wrap font-body-md text-body-sm italic text-on-surface-variant'
+                : 'mt-1 whitespace-pre-wrap font-body-md text-body-sm text-on-surface'
+            }
+          >
+            {comment.isDeleted ? t('comments.deletedPlaceholder') : comment.content}
+          </p>
+          {!comment.isDeleted && (
+            <div className="mt-1 flex gap-lg text-on-surface-variant">
+              {!isReply && (
+                <button onClick={() => setReplying((v) => !v)} className="flex items-center gap-xs text-label-caps hover:text-tertiary">
+                  <Icon name="chat_bubble" className="text-[14px]" /> {t('comments.reply')}
+                </button>
+              )}
+              {currentUserId === comment.userId && (
+                <button onClick={() => onDelete(comment.id)} className="flex items-center gap-xs text-label-caps hover:text-error">
+                  <Icon name="delete" className="text-[14px]" /> {t('comments.delete')}
+                </button>
+              )}
+            </div>
+          )}
 
           {replying && (
             <div className="mt-2 flex gap-2">
               <Input
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && submitReply()}
+                onKeyDown={(e) => isSubmitEnter(e, submitting) && submitReply()}
                 placeholder={t('comments.replyPlaceholder')}
+                disabled={submitting}
                 className="h-9 flex-1 rounded-full px-3"
               />
-              <Button size="sm" onClick={submitReply}>
+              <Button size="sm" onClick={submitReply} disabled={submitting}>
                 {t('comments.send')}
               </Button>
             </div>
@@ -131,60 +163,81 @@ export function CommentsSection({ postId }: { postId: number }) {
   const t = useTranslations('social');
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [comments, setComments] = useState<Comment[]>([]);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMoreComments, setLoadingMoreComments] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     setLoadError(false);
+    setLoading(true);
     socialApi
       .comments(postId)
-      .then((page) => setComments(page.data))
+      .then((page) => {
+        setComments(page.data);
+        setNextCursor(page.nextCursor);
+      })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [postId]);
 
   useCommentSocket(postId, setComments);
 
-  async function addTopComment() {
-    if (!user) {
-      router.push('/auth/login');
-      return;
-    }
-    if (!text.trim()) return;
-    setError(null);
+  async function loadMoreComments() {
+    if (!nextCursor || loadingMoreComments) return;
+    setLoadingMoreComments(true);
     try {
-      const created = await socialApi.addComment(postId, text.trim());
-      setComments((prev) => [{ ...created, replies: [] }, ...prev]);
-      setText('');
+      const page = await socialApi.comments(postId, nextCursor);
+      setComments((prev) => {
+        const seen = new Set(prev.map((c) => c.id));
+        return [...prev, ...page.data.filter((c) => !seen.has(c.id))];
+      });
+      setNextCursor(page.nextCursor);
     } catch {
-      setError(t('comments.errorAdd'));
+      setError(t('comments.loadError'));
+    } finally {
+      setLoadingMoreComments(false);
     }
   }
 
-  async function reply(parentId: number, content: string) {
+  async function addTopComment() {
     if (!user) {
-      router.push('/auth/login');
+      router.push(loginHref(pathname));
       return;
+    }
+    const value = text.trim();
+    if (!value || submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const created = await socialApi.addComment(postId, value);
+      setComments((prev) => upsertTopLevelComment(prev, created));
+      setText('');
+    } catch {
+      setError(t('comments.errorAdd'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function reply(parentId: number, content: string): Promise<boolean> {
+    if (!user) {
+      router.push(loginHref(pathname));
+      return false;
     }
     setError(null);
     try {
       const created = await socialApi.addComment(postId, content, parentId);
-      setComments((prev) =>
-        prev.map((c) =>
-          c.id === parentId
-            ? {
-                ...c,
-                replies: [...(c.replies ?? []), created],
-                replyCount: (c.replyCount ?? c.replies?.length ?? 0) + 1,
-              }
-            : c,
-        ),
-      );
+      setComments((prev) => upsertReply(prev, parentId, created));
+      return true;
     } catch {
       setError(t('comments.errorReply'));
+      return false;
     }
   }
 
@@ -208,11 +261,7 @@ export function CommentsSection({ postId }: { postId: number }) {
     setError(null);
     try {
       await socialApi.deleteComment(id);
-      setComments((prev) =>
-        prev
-          .filter((c) => c.id !== id)
-          .map((c) => ({ ...c, replies: c.replies?.filter((r) => r.id !== id) })),
-      );
+      setComments((prev) => applyCommentDeletion(prev, id));
     } catch {
       setError(t('comments.errorDelete'));
     }
@@ -227,11 +276,14 @@ export function CommentsSection({ postId }: { postId: number }) {
         <Input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addTopComment()}
+          onKeyDown={(e) => isSubmitEnter(e, submitting) && addTopComment()}
           placeholder={user ? t('comments.placeholder') : t('comments.loginToComment')}
+          disabled={submitting}
           className="flex-1 rounded-full"
         />
-        <Button onClick={addTopComment}>{t('comments.send')}</Button>
+        <Button onClick={addTopComment} disabled={submitting}>
+          {t('comments.send')}
+        </Button>
       </div>
       {error && <p className="text-body-sm text-error">{error}</p>}
 
@@ -253,6 +305,16 @@ export function CommentsSection({ postId }: { postId: number }) {
               currentUserId={user?.id}
             />
           ))}
+          {nextCursor && (
+            <button
+              onClick={() => void loadMoreComments()}
+              disabled={loadingMoreComments}
+              className="flex items-center gap-xs text-label-caps text-tertiary hover:underline disabled:opacity-60"
+            >
+              <Icon name="expand_more" className="text-[14px]" />
+              {loadingMoreComments ? t('comments.loadingMore') : t('comments.loadMoreComments')}
+            </button>
+          )}
         </div>
       )}
     </section>

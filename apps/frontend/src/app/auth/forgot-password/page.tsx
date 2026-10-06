@@ -4,11 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { authApi } from '@/lib/api';
+import { useToast } from '@/components/providers/toast-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export default function ForgotPasswordPage() {
   const t = useTranslations('auth');
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -20,6 +22,10 @@ export default function ForgotPasswordPage() {
       await authApi.forgotPassword(email);
       // Always show success (server never reveals whether the email exists).
       setSent(true);
+    } catch {
+      // A real failure (network, throttled) — not the same as "email not
+      // found", which the backend intentionally never distinguishes.
+      toast(t('forgot.error'), 'error');
     } finally {
       setLoading(false);
     }

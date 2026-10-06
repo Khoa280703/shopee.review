@@ -1,13 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/avatar';
 import { FollowButton } from '@/components/social/follow-button';
 import { BlockButton } from '@/components/moderation/block-button';
 import { ReportButton } from '@/components/moderation/report-button';
-import { usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatNumber } from '@/lib/format';
 import type { UserProfile } from '@/types';
@@ -15,17 +13,7 @@ import type { UserProfile } from '@/types';
 export function UserProfileHeader({ profile }: { profile: UserProfile }) {
   const t = useTranslations('profile');
   const { user } = useAuth();
-  const [following, setFollowing] = useState(profile.isFollowing);
   const isSelf = user?.username === profile.username;
-
-  useEffect(() => {
-    if (user && !isSelf) {
-      usersApi
-        .profile(profile.username)
-        .then((p) => setFollowing(p.isFollowing))
-        .catch(() => undefined);
-    }
-  }, [user, isSelf, profile.username]);
 
   const action = isSelf ? (
     <Link
@@ -36,7 +24,12 @@ export function UserProfileHeader({ profile }: { profile: UserProfile }) {
     </Link>
   ) : (
     <div className="flex items-center gap-2">
-      <FollowButton username={profile.username} initialFollowing={following} />
+      {/* No `initialFollowing` here — the broken SSR-without-cookie value used
+          to seed a react-query cache with staleTime:Infinity, which froze the
+          button on "Theo dõi" forever even after a client-side refetch learned
+          the truth (FE audit H1). Self-fetching (like the post detail page's
+          FollowButton) is both simpler and always correct. */}
+      <FollowButton username={profile.username} />
       <BlockButton username={profile.username} />
       <ReportButton targetType="USER" targetId={profile.id} />
     </div>

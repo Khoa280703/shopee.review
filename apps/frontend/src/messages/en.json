@@ -1,13 +1,38 @@
 {
   "admin": {
     "banUser": "Ban account",
+    "confirmBanUser": "Ban this account? They will be logged out and every post/comment they authored will be hidden everywhere.",
+    "confirmDeleteComment": "Delete this comment?",
+    "confirmDeletePost": "Delete this post?",
+    "confirmSuspendUser": "Suspend this account's login? Their existing content stays visible.",
+    "confirmUnbanUser": "Unban this account and restore their content?",
+    "confirmUnsuspendUser": "Unsuspend this account's login?",
     "deleteComment": "Delete comment",
+    "deletedBy": "Deleted by {actor}",
+    "deletedBySelf": "the author",
+    "deletedCommentsTitle": "Deleted comments",
+    "deletedPostsTitle": "Deleted posts",
+    "deletedReason": "Reason: {reason}",
     "deletePost": "Delete post",
     "dismiss": "Dismiss",
+    "lockedBanned": "Banned",
+    "lockedSince": "since {date}",
+    "lockedSuspended": "Suspended",
+    "noDeletedComments": "No deleted comments.",
+    "noDeletedPosts": "No deleted posts.",
+    "noLockedUsers": "No locked accounts.",
     "noReports": "No reports.",
+    "reasonPlaceholder": "Reason (optional)",
     "reportedBy": "by @{username}",
     "resolve": "Resolved",
-    "title": "Admin · Pending reports"
+    "restore": "Restore",
+    "suspendUser": "Suspend login",
+    "tabDeleted": "Deleted content",
+    "tabLocked": "Locked accounts",
+    "tabReports": "Pending reports",
+    "title": "Admin",
+    "unbanUser": "Unban account",
+    "unsuspendUser": "Unsuspend login"
   },
   "auth": {
     "callback": {
@@ -21,6 +46,7 @@
     "forgot": {
       "description": "Enter your email and we'll send you a password reset link.",
       "emailPlaceholder": "Email",
+      "error": "Couldn't send it. Please try again.",
       "sentMessage": "If this email exists in our system, we've sent a password reset link. Please check your inbox.",
       "submit": "Send reset link",
       "submitLoading": "Sending...",
@@ -33,6 +59,12 @@
       "forgotPassword": "Forgot password?",
       "google": "Log in with Google",
       "noAccount": "Don't have an account?",
+      "oauthErrors": {
+        "account_locked": "Your account has been locked by an administrator.",
+        "oauth_failed": "Sign-in failed. Please try again.",
+        "oauth_state": "Your sign-in session expired. Please try again.",
+        "oauth_unverified": "That email isn't verified with Google yet — log in with your password first, then link Google from Settings."
+      },
       "passwordPlaceholder": "Password",
       "register": "Sign up",
       "submit": "Log in",
@@ -154,6 +186,7 @@
   },
   "moderation": {
     "block": "Block",
+    "error": "Action failed. Please try again.",
     "reasons": {
       "FAKE": "False information",
       "OFFENSIVE": "Offensive content",
@@ -223,6 +256,9 @@
     "close": "Close",
     "defaultTitle": "Review post",
     "emptyList": "No reviews yet.",
+    "loadError": "Couldn't load posts. Please try again.",
+    "loadMoreError": "Couldn't load more. Please try again.",
+    "endOfList": "That's all the posts.",
     "moreImages": "+{count} photos",
     "noImage": "No image",
     "relatedTitle": "Related products",
@@ -281,6 +317,8 @@
     "logoutSession": "Log out",
     "newPassword": "New password",
     "noBlockedUsers": "You haven't blocked anyone.",
+    "actionFailed": "Action failed. Please try again.",
+    "avatarUploadFailed": "Couldn't upload avatar. Please try again.",
     "noSessions": "No sessions.",
     "passwordChangeFailed": "Password change failed",
     "passwordChanged": "Password changed. Other sessions were logged out.",
@@ -309,6 +347,7 @@
     },
     "comments": {
       "delete": "Delete",
+      "deletedPlaceholder": "This comment has been deleted.",
       "empty": "No comments yet. Be the first!",
       "errorAdd": "Couldn't post comment. Please try again.",
       "errorDelete": "Couldn't delete comment. Please try again.",
@@ -316,6 +355,7 @@
       "loadError": "Couldn't load comments. Please try again.",
       "loading": "Loading comments...",
       "loadingMore": "Loading...",
+      "loadMoreComments": "Show more comments",
       "loginToComment": "Log in to comment",
       "placeholder": "Write a comment...",
       "reply": "Reply",

@@ -50,7 +50,9 @@ export default function NotificationsPage() {
     <div className="mx-auto flex w-full max-w-container-max gap-lg px-0 py-lg sm:px-4 lg:px-lg">
       <div className="flex w-full flex-1 flex-col gap-lg lg:max-w-[700px]">
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-surface-container-high bg-background/95 px-4 py-sm backdrop-blur-sm sm:px-0">
+        {/* top-14 clears the mobile header the same way home-feed-tabs does
+            (FE audit M6) — lg: has no mobile header so it sticks flush. */}
+        <div className="sticky top-14 z-10 flex items-center justify-between border-b border-surface-container-high bg-background/95 px-4 py-sm backdrop-blur-sm sm:px-0 lg:top-0">
           <h1 className="font-display-lg-mobile text-display-lg-mobile text-on-background">{t('title')}</h1>
         </div>
 

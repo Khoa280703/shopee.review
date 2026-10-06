@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { moderationApi } from '@/lib/api';
+import { useToast } from '@/components/providers/toast-provider';
 import { cn } from '@/lib/cn';
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
 /** Block toggles to a "blocked" state; unblock via settings. */
 export function BlockButton({ username, className }: Props) {
   const t = useTranslations('moderation');
+  const toast = useToast();
   const [blocked, setBlocked] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -26,6 +28,8 @@ export function BlockButton({ username, className }: Props) {
         await moderationApi.block(username);
         setBlocked(true);
       }
+    } catch {
+      toast(t('error'), 'error');
     } finally {
       setPending(false);
     }

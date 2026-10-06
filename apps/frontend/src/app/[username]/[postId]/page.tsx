@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { ApiError, postsApi } from '@/lib/api';
 import { Avatar } from '@/components/ui/avatar';
@@ -23,7 +23,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ username: string; postId: string }>;
 }): Promise<Metadata> {
-  const { username, postId } = await params;
+  const { postId } = await params;
   const t = await getTranslations('post');
   const id = Number(postId);
   if (!Number.isInteger(id) || id <= 0) return { title: t('defaultTitle') };
@@ -34,7 +34,11 @@ export async function generateMetadata({
     // metadataBase by Next; R2 URLs are already absolute. Both yield valid,
     // crawlable OG/Twitter image URLs.
     const image = post.images?.[0] ? resolveAssetUrl(post.images[0]) : undefined;
-    const canonical = `/${username}/${post.id}`;
+    // Canonical uses the post's ACTUAL author username (from data), never the
+    // route param — `/any-typo/123` still renders the post (only `id` is
+    // looked up), so a canonical built from the param would be wrong and
+    // create duplicate-content URLs (FE audit S2).
+    const canonical = `/${post.user.username}/${post.id}`;
     return {
       title: `${post.title} - ${post.user.displayName}`,
       description,
@@ -64,7 +68,7 @@ export default async function PostDetailPage({
 }: {
   params: Promise<{ username: string; postId: string }>;
 }) {
-  const { postId } = await params;
+  const { username, postId } = await params;
   const t = await getTranslations('post');
 
   // A non-numeric id (junk URL, crawler) would reach the backend as NaN and 400,
@@ -80,22 +84,48 @@ export default async function PostDetailPage({
     throw e;
   }
 
+  // The post is looked up by id alone, so `/any-other-username/123` would
+  // otherwise render the same content under a second, non-canonical URL
+  // (FE audit S2). Redirect permanently to the real author's username.
+  if (post.user.username !== username) {
+    permanentRedirect(`/${post.user.username}/${post.id}`);
+  }
+
   const related = await postsApi.trending(true).catch(() => [] as Post[]);
   const images = (post.images ?? []).map(resolveAssetUrl).filter(Boolean) as string[];
   const meta = post.productMeta ?? {};
+  const pageUrl = `/${post.user.username}/${post.id}`;
+  // `meta.rating` is the SHOPEE SHOP/PRODUCT rating from the scrape, not the
+  // reviewer's own opinion -- attaching it as the Review's reviewRating would
+  // misrepresent whose rating it is (FE audit S1). It belongs on the reviewed
+  // product's aggregateRating instead.
   const jsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Review',
-    itemReviewed: { '@type': 'Product', name: post.title },
+    url: pageUrl,
+    itemReviewed: {
+      '@type': 'Product',
+      name: post.title,
+      ...(meta.rating != null
+        ? {
+            aggregateRating: {
+              '@type': 'AggregateRating',
+              ratingValue: meta.rating,
+              bestRating: 5,
+              ratingCount: 1,
+            },
+          }
+        : {}),
+    },
     author: { '@type': 'Person', name: post.user.displayName },
     datePublished: post.createdAt,
+    reviewBody: post.content ?? post.title,
+    ...(images[0] ? { image: images[0] } : {}),
     publisher: { '@type': 'Organization', name: SITE_NAME },
   };
-  if (meta.rating != null) {
-    jsonLd.reviewRating = { '@type': 'Rating', ratingValue: meta.rating, bestRating: 5 };
-  }
   // Escape `<` so user-controlled fields (e.g. post.title) can't break out of
-  // the <script> tag via `</script>`. \u003c is valid inside JSON string values.
+  // the <script> tag via `</script>`. The unicode escape is valid inside JSON
+  // string values.
   const jsonLdSafe = JSON.stringify(jsonLd).replace(/</g, '\\u003c');
 
   return (

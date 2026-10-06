@@ -88,14 +88,19 @@ const config: Config = {
         'container-max': '1200px',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        'display-lg': ['Inter'],
-        'body-md': ['Inter'],
-        'headline-md': ['Inter'],
-        'price-lg': ['Inter'],
-        'body-sm': ['Inter'],
-        'label-caps': ['Inter'],
-        'display-lg-mobile': ['Inter'],
+        // `next/font/google` registers Inter under a hashed, scoped family name
+        // exposed only via `--font-inter` (see app/layout.tsx) — the literal
+        // string 'Inter' resolves to nothing there, so these classes used to
+        // silently fall back to the browser's default (often a serif) on any
+        // device without Inter installed system-wide (FE audit H4).
+        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        'display-lg': ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        'body-md': ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        'headline-md': ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        'price-lg': ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        'body-sm': ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        'label-caps': ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        'display-lg-mobile': ['var(--font-inter)', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         'display-lg': ['32px', { lineHeight: '40px', letterSpacing: '-0.02em', fontWeight: '700' }],

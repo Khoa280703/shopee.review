@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { useAuth } from '@/lib/auth-context';
+import { loginHref } from '@/lib/login-href';
 import { UnreadBadge } from './unread-badge';
 
 export function MobileNav() {
@@ -18,7 +19,7 @@ export function MobileNav() {
     { href: '/search', icon: 'search', label: t('search') },
     { href: '/create', icon: 'add_circle', label: t('post'), auth: true },
     { href: '/notifications', icon: 'notifications', label: t('notifications'), auth: true, badge: true },
-    { href: user ? `/${user.username}` : '/auth/login', icon: 'person', label: t('profile') },
+    { href: user ? `/${user.username}` : loginHref('/'), icon: 'person', label: t('profile') },
   ];
 
   return (
@@ -31,7 +32,7 @@ export function MobileNav() {
               key={item.label}
               onClick={() => {
                 if (item.auth && !user) {
-                  router.push('/auth/login');
+                  router.push(loginHref(item.href));
                   return;
                 }
                 router.push(item.href);

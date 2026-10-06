@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { socialApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/components/providers/toast-provider';
+import { loginHref } from '@/lib/login-href';
 import { PostFeedCard } from '@/components/post/post-feed-card';
 import type { Post } from '@/types';
 
@@ -14,6 +16,7 @@ export default function SavedPage() {
   const common = useTranslations('common');
   const { user, loading } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [posts, setPosts] = useState<Post[]>([]);
   const [cursor, setCursor] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -23,7 +26,7 @@ export default function SavedPage() {
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      router.replace('/auth/login');
+      router.replace(loginHref('/saved'));
       return;
     }
     setFailed(false);
@@ -44,10 +47,12 @@ export default function SavedPage() {
       const page = await socialApi.bookmarks(cursor);
       setPosts((prev) => [...prev, ...page.data]);
       setCursor(page.nextCursor);
+    } catch {
+      toast(t('loadFailed'), 'error');
     } finally {
       setLoadingMore(false);
     }
-  }, [cursor, loadingMore]);
+  }, [cursor, loadingMore, t, toast]);
 
   if (loading || !user) {
     return <div className="py-16 text-center text-on-surface-variant">{common('loading')}</div>;

@@ -1,13 +1,38 @@
 {
   "admin": {
     "banUser": "Khoá tài khoản",
+    "confirmBanUser": "Khoá tài khoản này? Họ sẽ bị đăng xuất và mọi bài viết/bình luận sẽ bị ẩn ở mọi nơi.",
+    "confirmDeleteComment": "Xoá bình luận này?",
+    "confirmDeletePost": "Xoá bài viết này?",
+    "confirmSuspendUser": "Khoá đăng nhập tài khoản này? Nội dung hiện có vẫn hiển thị.",
+    "confirmUnbanUser": "Gỡ khoá và khôi phục nội dung của tài khoản này?",
+    "confirmUnsuspendUser": "Mở khoá đăng nhập tài khoản này?",
     "deleteComment": "Xoá bình luận",
+    "deletedBy": "{actor} đã xoá",
+    "deletedBySelf": "tự xoá",
+    "deletedCommentsTitle": "Bình luận đã xoá",
+    "deletedPostsTitle": "Bài viết đã xoá",
+    "deletedReason": "Lý do: {reason}",
     "deletePost": "Xoá bài",
     "dismiss": "Bỏ qua",
+    "lockedBanned": "Đã khoá",
+    "lockedSince": "từ {date}",
+    "lockedSuspended": "Tạm khoá",
+    "noDeletedComments": "Không có bình luận nào đã xoá.",
+    "noDeletedPosts": "Không có bài viết nào đã xoá.",
+    "noLockedUsers": "Không có tài khoản nào bị khoá.",
     "noReports": "Không có báo cáo nào.",
+    "reasonPlaceholder": "Lý do (tuỳ chọn)",
     "reportedBy": "bởi @{username}",
     "resolve": "Đã xử lý",
-    "title": "Quản trị · Báo cáo chờ xử lý"
+    "restore": "Khôi phục",
+    "suspendUser": "Khoá đăng nhập",
+    "tabDeleted": "Nội dung đã xoá",
+    "tabLocked": "Tài khoản bị khoá",
+    "tabReports": "Báo cáo chờ xử lý",
+    "title": "Quản trị",
+    "unbanUser": "Gỡ khoá tài khoản",
+    "unsuspendUser": "Mở khoá đăng nhập"
   },
   "auth": {
     "callback": {
@@ -21,6 +46,7 @@
     "forgot": {
       "description": "Nhập email của bạn, chúng tôi sẽ gửi link đặt lại mật khẩu.",
       "emailPlaceholder": "Email",
+      "error": "Không gửi được. Vui lòng thử lại.",
       "sentMessage": "Nếu email tồn tại trong hệ thống, chúng tôi đã gửi link đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.",
       "submit": "Gửi link đặt lại",
       "submitLoading": "Đang gửi...",
@@ -33,6 +59,12 @@
       "forgotPassword": "Quên mật khẩu?",
       "google": "Đăng nhập với Google",
       "noAccount": "Chưa có tài khoản?",
+      "oauthErrors": {
+        "account_locked": "Tài khoản của bạn đã bị quản trị viên khóa.",
+        "oauth_failed": "Đăng nhập thất bại. Vui lòng thử lại.",
+        "oauth_state": "Phiên đăng nhập đã hết hạn. Vui lòng thử lại.",
+        "oauth_unverified": "Email này chưa được Google xác minh — hãy đăng nhập bằng mật khẩu trước, sau đó liên kết Google trong Cài đặt."
+      },
       "passwordPlaceholder": "Mật khẩu",
       "register": "Đăng ký",
       "submit": "Đăng nhập",
@@ -154,6 +186,7 @@
   },
   "moderation": {
     "block": "Chặn",
+    "error": "Thao tác thất bại. Vui lòng thử lại.",
     "reasons": {
       "FAKE": "Thông tin giả",
       "OFFENSIVE": "Nội dung phản cảm",
@@ -223,6 +256,9 @@
     "close": "Đóng",
     "defaultTitle": "Bài review",
     "emptyList": "Chưa có bài review nào.",
+    "loadError": "Không tải được bài viết. Vui lòng thử lại.",
+    "loadMoreError": "Không tải thêm được. Vui lòng thử lại.",
+    "endOfList": "Đã hết bài viết.",
     "moreImages": "+{count} ảnh",
     "noImage": "Không có ảnh",
     "relatedTitle": "Sản phẩm liên quan",
@@ -281,6 +317,8 @@
     "logoutSession": "Đăng xuất",
     "newPassword": "Mật khẩu mới",
     "noBlockedUsers": "Bạn chưa chặn ai.",
+    "actionFailed": "Thao tác thất bại. Vui lòng thử lại.",
+    "avatarUploadFailed": "Tải ảnh đại diện thất bại. Vui lòng thử lại.",
     "noSessions": "Không có phiên nào.",
     "passwordChangeFailed": "Đổi mật khẩu thất bại",
     "passwordChanged": "Đã đổi mật khẩu. Các phiên đăng nhập khác đã bị đăng xuất.",
@@ -309,6 +347,7 @@
     },
     "comments": {
       "delete": "Xóa",
+      "deletedPlaceholder": "Bình luận đã bị xoá.",
       "empty": "Chưa có bình luận nào. Hãy là người đầu tiên!",
       "errorAdd": "Không gửi được bình luận. Vui lòng thử lại.",
       "errorDelete": "Không xoá được bình luận. Vui lòng thử lại.",
@@ -316,6 +355,7 @@
       "loadError": "Không tải được bình luận. Vui lòng thử lại.",
       "loading": "Đang tải bình luận...",
       "loadingMore": "Đang tải...",
+      "loadMoreComments": "Xem thêm bình luận",
       "loginToComment": "Đăng nhập để bình luận",
       "placeholder": "Viết bình luận...",
       "reply": "Trả lời",

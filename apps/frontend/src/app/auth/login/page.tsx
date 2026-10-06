@@ -1,14 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { authApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { safeNext } from '@/lib/safe-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { buttonClasses } from '@/components/ui/button-classes';
+
+// Error codes the backend OAuth callback redirects here with (M5): a locked
+// account, a Google-unverified email it refused to auto-link, an OAuth CSRF
+// state mismatch, or any other provider-side failure.
+const OAUTH_ERROR_KEYS = ['account_locked', 'oauth_unverified', 'oauth_state', 'oauth_failed'] as const;
+type OAuthErrorKey = (typeof OAUTH_ERROR_KEYS)[number];
+
+function isOAuthErrorKey(value: string | null): value is OAuthErrorKey {
+  return value !== null && (OAUTH_ERROR_KEYS as readonly string[]).includes(value);
+}
 
 export default function LoginPage() {
   const t = useTranslations('auth');
@@ -19,12 +30,31 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Where to go after login: the `?next=` set by the middleware, restricted to
-  // internal absolute paths so it can't be abused as an open redirect.
+  // Surface a `?error=` from the OAuth callback redirect (M5) instead of
+  // silently dropping it — previously these query params were never read.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const code = new URLSearchParams(window.location.search).get('error');
+    if (isOAuthErrorKey(code)) {
+      setError(t(`login.oauthErrors.${code}`));
+    }
+  }, [t]);
+
+  // Where to go after login: the `?next=` set by the middleware (or by any
+  // client-side prompt via `loginHref`), restricted to internal relative
+  // paths so it can't be abused as an open redirect.
   function nextTarget(): string {
     if (typeof window === 'undefined') return '/';
     const next = new URLSearchParams(window.location.search).get('next');
-    return next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+    return safeNext(next, window.location.origin);
+  }
+
+  // OAuth is a full-page redirect (no SPA state survives it), so the `next`
+  // target is relayed via sessionStorage instead of a server-side param —
+  // read back by /auth/callback, same-origin only, re-validated there too.
+  function storeReturnTo() {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem('authReturnTo', nextTarget());
   }
 
   async function submit(e: React.FormEvent) {
@@ -77,12 +107,17 @@ export default function LoginPage() {
           <div className="h-px flex-1 bg-outline-variant" /> {t('common.or')} <div className="h-px flex-1 bg-outline-variant" />
         </div>
 
-        <a href={authApi.googleUrl()} className={buttonClasses({ variant: 'outline', fullWidth: true, size: 'lg' })}>
+        <a
+          href={authApi.googleUrl()}
+          onClick={storeReturnTo}
+          className={buttonClasses({ variant: 'outline', fullWidth: true, size: 'lg' })}
+        >
           {t('login.google')}
         </a>
 
         <a
           href={authApi.facebookUrl()}
+          onClick={storeReturnTo}
           className={`mt-2 ${buttonClasses({ variant: 'outline', fullWidth: true, size: 'lg' })}`}
         >
           {t('login.facebook')}

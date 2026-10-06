@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { authApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { safeNext } from '@/lib/safe-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { buttonClasses } from '@/components/ui/button-classes';
@@ -23,6 +24,20 @@ export default function RegisterPage() {
       setForm((prev) => ({ ...prev, [key]: e.target.value }));
   }
 
+  // Mirrors the login page: honor `?next=` (same-origin relative path only)
+  // so a user sent here mid-flow (e.g. from a future login→register link)
+  // still lands back where they were (FE audit M8).
+  function nextTarget(): string {
+    if (typeof window === 'undefined') return '/';
+    const next = new URLSearchParams(window.location.search).get('next');
+    return safeNext(next, window.location.origin);
+  }
+
+  function storeReturnTo() {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem('authReturnTo', nextTarget());
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -30,7 +45,7 @@ export default function RegisterPage() {
     try {
       const { user } = await authApi.register(form);
       setUser(user);
-      router.push('/');
+      router.push(nextTarget());
     } catch (err) {
       setError(err instanceof Error ? err.message : t('register.error'));
     } finally {
@@ -68,12 +83,17 @@ export default function RegisterPage() {
           <div className="h-px flex-1 bg-outline-variant" /> {t('common.or')} <div className="h-px flex-1 bg-outline-variant" />
         </div>
 
-        <a href={authApi.googleUrl()} className={buttonClasses({ variant: 'outline', fullWidth: true, size: 'lg' })}>
+        <a
+          href={authApi.googleUrl()}
+          onClick={storeReturnTo}
+          className={buttonClasses({ variant: 'outline', fullWidth: true, size: 'lg' })}
+        >
           {t('register.google')}
         </a>
 
         <a
           href={authApi.facebookUrl()}
+          onClick={storeReturnTo}
           className={`mt-2 ${buttonClasses({ variant: 'outline', fullWidth: true, size: 'lg' })}`}
         >
           {t('register.facebook')}

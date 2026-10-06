@@ -83,9 +83,15 @@ export function useNotifications() {
   }, [user]);
 
   const markAllRead = useCallback(async () => {
-    await notificationsApi.markAllRead();
-    setUnreadCount(0);
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await notificationsApi.markAllRead();
+      setUnreadCount(0);
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch {
+      // Best-effort, fired automatically on viewing the page (not a user
+      // action) — a failure here shouldn't surface as an error toast; the
+      // badge just stays as-is and the next view retries.
+    }
   }, []);
 
   const loadMore = useCallback(async () => {
@@ -95,6 +101,10 @@ export function useNotifications() {
       const page = await notificationsApi.list(nextCursor);
       setNotifications((prev) => [...prev, ...page.data]);
       setNextCursor(page.nextCursor);
+    } catch {
+      // Leave `nextCursor` as-is so the caller's "load more" button is still
+      // there to retry — silently swallowing would otherwise look like
+      // there's nothing more to load.
     } finally {
       setLoadingMore(false);
     }

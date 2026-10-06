@@ -162,7 +162,12 @@ export function PostFeedCard({ post }: { post: Post }) {
           >
             <PostActionContent icon="open_in_new" count={post.clickCount} color="secondary" />
           </a>
-          <ReactionButton postId={post.id} initialCount={post.likeCount} variant="icon" />
+          <ReactionButton
+            postId={post.id}
+            initialCount={post.likeCount}
+            initialReaction={post.viewerReaction}
+            variant="icon"
+          />
           <ShareButton postId={post.id} username={post.user.username} initialCount={post.shareCount ?? 0} />
         </div>
       </div>
