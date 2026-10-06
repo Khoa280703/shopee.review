@@ -349,7 +349,7 @@ export class SocialService {
 
     const hasMore = comments.length > limit;
     const sliced = hasMore ? comments.slice(0, limit) : comments;
-    const data = sliced.map(({ _count, deletedAt, deletedById, deleteReason, content, ...c }) => ({
+    const data = sliced.map(({ _count, deletedAt, deletedById: _deletedById, deleteReason: _deleteReason, content, ...c }) => ({
       ...c,
       // Placeholder content: never leak the original text of a removed
       // comment just because one of its replies is still visible. Moderation

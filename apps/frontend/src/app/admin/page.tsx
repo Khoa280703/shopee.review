@@ -76,7 +76,7 @@ function ReportsTab({ busy, setBusy }: { busy: boolean; setBusy: (v: boolean) =>
               <span className="text-on-surface-variant">{t('reportedBy', { username: r.reporter.username })}</span>
               <span className="text-outline">· <TimeAgo date={r.createdAt} /></span>
             </div>
-            {r.detail && <p className="mb-3 text-body-sm text-on-surface-variant">"{r.detail}"</p>}
+            {r.detail && <p className="mb-3 text-body-sm text-on-surface-variant">&quot;{r.detail}&quot;</p>}
             {(r.targetType === 'POST' || r.targetType === 'COMMENT') && (
               <Input
                 value={reason}

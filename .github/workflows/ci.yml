@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Type-check, unit tests (mocked Prisma — no DB), and full build.
+  # Lint, type-check, unit tests (mocked Prisma — no DB), and full build.
   build-and-unit:
     runs-on: ubuntu-latest
     steps:
@@ -25,9 +25,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm --filter @app/database build
+      - run: pnpm --filter @app/backend lint
+      - run: pnpm --filter @app/frontend lint
       - run: pnpm --filter @app/backend typecheck
       - run: pnpm --filter @app/frontend typecheck
       - run: pnpm --filter @app/backend test
+      - run: pnpm --filter @app/frontend test
       - run: pnpm build
 
   # Guard against the port-80 regression: the frontend image must be buildable

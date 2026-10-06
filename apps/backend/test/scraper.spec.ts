@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { describe, expect, it, vi } from 'vitest';
 import { AffiliateLinkGenerator } from '../src/scraper/affiliate-link-generator';
 import { ScraperService } from '../src/scraper/scraper.service';
+import type { ShopeeApiScraper } from '../src/scraper/shopee-api-scraper';
 import { parseShopeeUrl } from '../src/scraper/shopee-url-parser';
 
 describe('parseShopeeUrl', () => {
@@ -81,9 +82,9 @@ describe('AffiliateLinkGenerator', () => {
 describe('ScraperService', () => {
   it('returns manual partial data when API and browser fallback fail', async () => {
     const service = new ScraperService(
-      { scrapeProduct: vi.fn().mockResolvedValue(null) },
-      { scrapeProduct: vi.fn().mockRejectedValue(new Error('blocked')) },
-      { generate: vi.fn().mockReturnValue('affiliate-url') }
+      { scrapeProduct: vi.fn().mockResolvedValue(null) } as unknown as ShopeeApiScraper,
+      { scrapeProduct: vi.fn().mockRejectedValue(new Error('blocked')) } as never,
+      { generate: vi.fn().mockReturnValue('affiliate-url') } as never,
     );
 
     const result = await service.scrapeShopeeUrl('https://shopee.vn/foo-i.123.456');

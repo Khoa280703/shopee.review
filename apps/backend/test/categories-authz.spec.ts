@@ -66,7 +66,7 @@ describe('CategoriesService field mapping', () => {
       isAdmin: true,
     } as never;
 
-    const result = await (service.create(malicious) as Promise<{ data: Record<string, unknown> }>);
+    const result = await (service.create(malicious) as unknown as Promise<{ data: Record<string, unknown> }>);
     expect(result.data).toEqual({ name: 'Phones', slug: 'phones', icon: 'phone', sortOrder: 1 });
     expect(result.data.posts).toBeUndefined();
   });
@@ -84,7 +84,7 @@ describe('CategoriesService field mapping', () => {
       },
     } as never;
 
-    const result = await (service.update(1, malicious) as Promise<{ data: Record<string, unknown> }>);
+    const result = await (service.update(1, malicious) as unknown as Promise<{ data: Record<string, unknown> }>);
     expect(result.data).toEqual({ name: 'Renamed' });
     expect(result.data.posts).toBeUndefined();
   });

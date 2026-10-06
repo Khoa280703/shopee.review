@@ -1,11 +1,23 @@
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
-// Scoped to plain-TS unit tests only (e.g. safeNext, H1) — no jsdom/React
-// Testing Library setup here. Component tests would need that additional
-// infra; none exist yet, so it's left out rather than added speculatively.
+// jsdom covers both the plain-TS unit tests (safeNext) and the component
+// tests added alongside it (follow-button, bookmark-button, reaction-button,
+// comments-section, home-feed-tabs, admin page) — jsdom is a strict superset
+// of what a node-environment test needs, so one environment for the whole
+// suite keeps this config simple.
 export default defineConfig({
   test: {
-    environment: 'node',
-    include: ['src/**/*.test.ts'],
+    environment: 'jsdom',
+    include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['./src/test/vitest-setup.ts'],
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  esbuild: {
+    jsx: 'automatic',
   },
 });

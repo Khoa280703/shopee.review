@@ -16,7 +16,7 @@
  */
 export function safeNext(raw: string | null | undefined, origin: string): string {
   if (!raw) return '/';
-  // eslint-disable-next-line no-control-regex -- intentional: reject raw control chars.
+  // Intentional: reject raw control chars (defense-in-depth alongside the origin check below).
   if (/[\x00-\x1f\x7f\\]/.test(raw)) return '/';
   try {
     const url = new URL(raw, origin);

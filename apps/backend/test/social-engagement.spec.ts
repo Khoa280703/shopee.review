@@ -6,6 +6,7 @@ import { SocialService } from '../src/social/social.service';
 function makeService(prismaOverrides: Record<string, unknown>) {
   const prisma = {
     post: { findUnique: vi.fn(), update: vi.fn() },
+    user: { findUnique: vi.fn() },
     reaction: {
       findUnique: vi.fn(),
       create: vi.fn(),
