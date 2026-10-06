@@ -1,6 +1,6 @@
 # Audit remediation — làm hệ thống chuẩn & clean
 
-Status: in-progress · Created 2026-10-06 · Source: `plans/reports/orchestrator-261006-2119-full-system-audit-synthesis.md` (+ 5 báo cáo con)
+Status: phases 1–5 done; phase 6 waiting on DNS · Created 2026-10-06 · Source: `plans/reports/orchestrator-261006-2119-full-system-audit-synthesis.md` (+ 5 báo cáo con)
 
 ## Outcome
 Hệ thống an toàn, đúng nghiệp vụ, UX mượt, có lint/test thật và chạy public tại `https://shopee.review` — nền sạch để phát triển tính năng tiếp.
@@ -22,12 +22,12 @@ Sửa code trên Mac → rsync sang clone riêng trên server `~/working-sources
 ## Phases
 | # | Phase | Phụ thuộc | Trạng thái |
 |---|-------|-----------|-----------|
-| 1 | Bảo mật P0 | – | in-progress |
-| 2 | Moderation 2 mức + xoá mềm + DB hygiene | 1 | pending |
-| 3 | UX fixes | 1 (song song với 4) | pending |
-| 4 | Infra: domain, Docker, log-only monitoring, Postgres | 1 | pending |
-| 5 | Chất lượng: ESLint, test, CI | 2,3,4 | pending |
-| 6 | Docs + deploy + verify public | 5 | pending |
+| 1 | Bảo mật P0 | – | done |
+| 2 | Moderation 2 mức + xoá mềm + DB hygiene | 1 | done |
+| 3 | UX fixes | 1 (song song với 4) | done |
+| 4 | Infra: domain, Docker, log-only monitoring, Postgres | 1 | done (deployed 2026-10-07) |
+| 5 | Chất lượng: ESLint, test, CI | 2,3,4 | done |
+| 6 | Docs + deploy + verify public | 5 | deployed; HTTPS chờ DNS |
 
 ### Phase 1 — Bảo mật P0
 - Categories: `AdminGuard` cho POST/PATCH/DELETE; `UpdateCategoryDto` (class, PartialType); service map field tường minh.
