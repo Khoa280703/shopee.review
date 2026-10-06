@@ -65,15 +65,19 @@ export class ReconciliationService {
       WHERE p.like_count <> 0 AND NOT EXISTS (SELECT 1 FROM reactions r WHERE r.post_id = p.id)
     `);
 
-    // posts.comment_count (parents + replies)
+    // posts.comment_count (parents + replies). Soft-deleted comments are
+    // excluded — the counter tracks VISIBLE comments, which is what delete/
+    // restore already increment/decrement, so reconcile must agree or it would
+    // silently undo every soft-delete on the next nightly run.
     total += await this.prisma.$executeRawUnsafe(`
       UPDATE posts p SET comment_count = c.cnt
-      FROM (SELECT post_id, COUNT(*)::int AS cnt FROM comments GROUP BY post_id) c
+      FROM (SELECT post_id, COUNT(*)::int AS cnt FROM comments WHERE deleted_at IS NULL GROUP BY post_id) c
       WHERE p.id = c.post_id AND p.comment_count <> c.cnt
     `);
     total += await this.prisma.$executeRawUnsafe(`
       UPDATE posts p SET comment_count = 0
-      WHERE p.comment_count <> 0 AND NOT EXISTS (SELECT 1 FROM comments cm WHERE cm.post_id = p.id)
+      WHERE p.comment_count <> 0
+        AND NOT EXISTS (SELECT 1 FROM comments cm WHERE cm.post_id = p.id AND cm.deleted_at IS NULL)
     `);
 
     // users.followers_count (people following this user)

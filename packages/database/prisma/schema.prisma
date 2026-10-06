@@ -73,14 +73,22 @@ model User {
   // Verified ("blue tick") badge — granted by admins; product may later gate it
   // behind a paid tier. Shown next to the author name across the app.
   verified        Boolean   @default(false)
+  // Level 1 moderation: locks login (tokenVersion bumped + sessions killed at
+  // the moment of suspension) but content stays visible. Reversible.
+  suspendedAt     DateTime? @map("suspended_at")
+  // Level 2 moderation: locks login AND hides all of the user's posts/comments
+  // everywhere (feed/explore/trending/search/detail/profile) + the /r/:postId
+  // redirect 404s. Reversible (unban restores everything).
   bannedAt        DateTime? @map("banned_at")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   posts              Post[]
+  deletedPosts       Post[]         @relation("PostDeletedBy")
   reactions          Reaction[]
   bookmarks          Bookmark[]
   comments           Comment[]
+  deletedComments    Comment[]      @relation("CommentDeletedBy")
   followers          Follow[]       @relation("Following")
   following          Follow[]       @relation("Follower")
   notifications      Notification[] @relation("Recipient")
@@ -123,11 +131,18 @@ model Post {
   commentCount Int      @default(0) @map("comment_count")
   clickCount   Int      @default(0) @map("click_count")
   shareCount   Int      @default(0) @map("share_count")
+  // Soft delete: set by either the author (self-delete) or moderation (report
+  // approval). Every public read path filters deletedAt IS NULL. Reversible via
+  // the admin restore endpoint — nothing is ever hard-deleted here.
+  deletedAt    DateTime? @map("deleted_at")
+  deletedById  Int?      @map("deleted_by_id")
+  deleteReason String?   @map("delete_reason") @db.VarChar(500)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   category      Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  deletedBy     User?          @relation("PostDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   reactions     Reaction[]
   bookmarks     Bookmark[]
   comments      Comment[]
@@ -138,6 +153,12 @@ model Post {
   // (posts of followed users, newest first) and profile post listings index-only.
   // Also covers plain user_id filters via the leftmost prefix.
   @@index([userId, id(sort: Desc)])
+  // Visible-feed categoryId reads are served by a partial index created in a
+  // raw migration (posts_category_id_visible_idx, WHERE deleted_at IS NULL —
+  // not modelable here). This plain index stays alongside it (pre-deploy
+  // review L4): a category delete (ON DELETE SET NULL on this FK) must find
+  // EVERY post with this categoryId, including soft-deleted ones the partial
+  // index excludes, or that check falls back to a full table scan.
   @@index([categoryId])
   @@index([createdAt(sort: Desc)])
   // Keyset pagination for the sortable feeds (findAll sortBy=likeCount|clickCount
@@ -156,8 +177,10 @@ model Follow {
   following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
 
   @@id([followerId, followingId])
-  @@index([followingId])
-  @@index([followerId])
+  // Serves follower-fanout pagination (`WHERE following_id = ? AND follower_id >
+  // cursor ORDER BY follower_id`) index-only. The old bare @@index([followerId])
+  // was a redundant prefix of the composite PK and has been dropped.
+  @@index([followingId, followerId])
   @@map("follows")
 }
 
@@ -194,18 +217,30 @@ model Comment {
   postId    Int      @map("post_id")
   parentId  Int?     @map("parent_id")
   content   String   @db.Text
+  // Soft delete: self-delete or moderation removal. No cascade to replies —
+  // each row's deletedAt is independent, so a reply can be restored on its own.
+  deletedAt    DateTime? @map("deleted_at")
+  deletedById  Int?      @map("deleted_by_id")
+  deleteReason String?   @db.VarChar(500) @map("delete_reason")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  parent  Comment?  @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies Comment[] @relation("Replies")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("Replies")
+  deletedBy User?     @relation("CommentDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
 
-  @@index([postId])
   @@index([userId])
   @@index([parentId])
-  @@index([postId, parentId])
+  // Visible top-level/reply listing is served by a partial index created in a
+  // raw migration (comments_visible_post_id_parent_id_id_idx, WHERE deleted_at
+  // IS NULL — not modelable here; replaces the old @@index([postId, parentId])).
+  // This plain index stays alongside it (pre-deploy review L4): hard-deleting a
+  // Post cascades (ON DELETE CASCADE) to ALL its comments, including
+  // soft-deleted ones the partial index excludes, or that check falls back to
+  // a full table scan.
+  @@index([postId])
   @@map("comments")
 }
 
@@ -221,9 +256,10 @@ model ClickLog {
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  @@index([postId])
   @@index([createdAt])
   // Serves the 1h/IP dedup lookup (postId + ip + createdAt window) index-only.
+  // The old bare @@index([postId]) was a redundant prefix of this composite and
+  // has been dropped.
   @@index([postId, ip, createdAt])
   @@map("click_logs")
 }
@@ -243,7 +279,15 @@ model Notification {
   actor     User  @relation("Actor", fields: [actorId], references: [id], onDelete: Cascade)
   post      Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  @@index([recipientId, read])
+  // Serves `WHERE recipient_id = ? ORDER BY created_at DESC, id DESC` (the list
+  // query) index-only instead of a full sort. createdAt leads (not id, M3):
+  // upsertDedupedNotification bumps created_at on a repeat LIKE/FOLLOW without
+  // changing the row's id, so an id-ordered index left a just-bumped
+  // notification stuck at its original position. Replaces the old
+  // (recipientId, read) index, which didn't match that query's sort order;
+  // unread counts use a separate partial index (notifications_unread_idx, raw
+  // migration).
+  @@index([recipientId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([createdAt])
   @@map("notifications")
 }

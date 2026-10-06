@@ -65,18 +65,22 @@ export class UsersController {
   }
 
   @Get(':username/posts')
+  @UseGuards(OptionalJwtAuthGuard)
   getUserPosts(
     @Param('username') username: string,
+    @Req() req: Request,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
     @Query('hasProduct') hasProduct?: string,
   ) {
+    const viewer = req.user as AuthUser | undefined;
     const page = parsePageParams(cursor, limit, { def: 20, max: 50 });
     return this.usersService.getUserPosts(
       username,
       page.cursor,
       page.limit,
       hasProduct === 'true',
+      viewer?.id,
     );
   }
 }

@@ -7,6 +7,12 @@ import {
 import { Prisma, type ReactionType } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
+import {
+  TOP_LEVEL_COMMENT_VISIBLE_OR_PLACEHOLDER,
+  VISIBLE_COMMENT_WHERE,
+  VISIBLE_POST_WHERE,
+} from '../common/visible-content';
+import { attachViewerPostState } from '../common/viewer-post-flags';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BlocksService } from '../moderation/blocks.service';
 import { SocialGateway } from './social.gateway';
@@ -151,6 +157,19 @@ export class SocialService {
     return { data, nextPage: hasMore ? page + 1 : null };
   }
 
+  /** Shared visibility gate: a soft-deleted post or a banned author's post is
+   * 404 to every interaction (react, bookmark, share, comment), not just reads. */
+  private async assertPostVisible(postId: number): Promise<{ id: number; userId: number }> {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, userId: true, deletedAt: true, user: { select: { bannedAt: true } } },
+    });
+    if (!post || post.deletedAt || post.user.bannedAt) {
+      throw new NotFoundException('Không tìm thấy bài viết');
+    }
+    return { id: post.id, userId: post.userId };
+  }
+
   // ---------- Reactions ----------
   // likeCount on Post is the TOTAL reaction count, maintained with atomic
   // increment/decrement (no read-modify-write). Per-type counts are aggregated
@@ -166,11 +185,7 @@ export class SocialService {
 
   /** Upsert a reaction. Same type again toggles it off. Atomic counter math. */
   async react(userId: number, postId: number, type: ReactionType) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      select: { id: true, userId: true },
-    });
-    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    const post = await this.assertPostVisible(postId);
     await this.blocks.assertNotBlocked(userId, post.userId);
 
     const existing = await this.prisma.reaction.findUnique({
@@ -225,11 +240,7 @@ export class SocialService {
   }
 
   async reactionStatus(postId: number, userId?: number) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      select: { id: true },
-    });
-    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    await this.assertPostVisible(postId);
 
     let type: ReactionType | null = null;
     if (userId) {
@@ -243,33 +254,43 @@ export class SocialService {
   }
 
   // ---------- Bookmarks ----------
-  async toggleBookmark(userId: number, postId: number) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      select: { id: true, userId: true },
-    });
-    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+  // Idempotent set (not toggle): the caller states the desired end state, so a
+  // stale client (two tabs, a retried request) can never flip it the wrong
+  // way — unlike a toggle, which is only correct if the client's current view
+  // of the state was accurate (FE audit H2: SSR/CSR state mismatch made the
+  // old toggle silently unbookmark instead of bookmark).
+  async setBookmark(userId: number, postId: number, bookmarked: boolean) {
+    const post = await this.assertPostVisible(postId);
     await this.blocks.assertNotBlocked(userId, post.userId);
 
-    const existing = await this.prisma.bookmark.findUnique({
-      where: { userId_postId: { userId, postId } },
-    });
-    if (existing) {
-      await this.prisma.bookmark.delete({ where: { userId_postId: { userId, postId } } });
-      return { bookmarked: false };
+    if (bookmarked) {
+      try {
+        await this.prisma.bookmark.create({ data: { userId, postId } });
+      } catch (e) {
+        if (!isUniqueViolation(e)) throw e;
+      }
+      return { bookmarked: true };
     }
     try {
-      await this.prisma.bookmark.create({ data: { userId, postId } });
+      await this.prisma.bookmark.delete({ where: { userId_postId: { userId, postId } } });
     } catch (e) {
-      if (isUniqueViolation(e)) return { bookmarked: true };
-      throw e;
+      if (!isNotFound(e)) throw e;
     }
-    return { bookmarked: true };
+    return { bookmarked: false };
+  }
+
+  async bookmarkStatus(postId: number, userId: number) {
+    await this.assertPostVisible(postId);
+    const existing = await this.prisma.bookmark.findUnique({
+      where: { userId_postId: { userId, postId } },
+      select: { userId: true },
+    });
+    return { bookmarked: Boolean(existing) };
   }
 
   async listBookmarks(userId: number, cursor?: number, limit = 20) {
     const rows = await this.prisma.bookmark.findMany({
-      where: { userId },
+      where: { userId, post: VISIBLE_POST_WHERE },
       take: limit + 1,
       ...(cursor ? { cursor: { userId_postId: { userId, postId: cursor } }, skip: 1 } : {}),
       // Secondary sort by postId gives a total order so keyset pagination is
@@ -286,47 +307,57 @@ export class SocialService {
     });
     const hasMore = rows.length > limit;
     const sliced = hasMore ? rows.slice(0, limit) : rows;
+    const data = await attachViewerPostState(this.prisma, userId, sliced.map((b) => b.post));
     return {
-      data: sliced.map((b) => b.post),
+      data,
       nextCursor: hasMore ? sliced[sliced.length - 1].postId : null,
     };
   }
 
   // ---------- Share ----------
   async share(postId: number) {
+    await this.assertPostVisible(postId);
     const post = await this.prisma.post.update({
       where: { id: postId },
       data: { shareCount: { increment: 1 } },
       select: { shareCount: true },
-    }).catch(() => null);
-    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    });
     return { shareCount: post.shareCount };
   }
 
   // ---------- Comments ----------
   async getComments(postId: number, cursor?: number, limit = 20) {
+    await this.assertPostVisible(postId);
     const comments = await this.prisma.comment.findMany({
-      where: { postId, parentId: null },
+      where: { postId, parentId: null, ...TOP_LEVEL_COMMENT_VISIBLE_OR_PLACEHOLDER },
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       orderBy: { id: 'desc' },
       include: {
         user: { select: PUBLIC_AUTHOR_SELECT },
         replies: {
+          where: VISIBLE_COMMENT_WHERE,
           take: REPLIES_PAGE_SIZE,
           orderBy: { id: 'asc' },
           include: {
             user: { select: PUBLIC_AUTHOR_SELECT },
           },
         },
-        _count: { select: { replies: true } },
+        _count: { select: { replies: { where: VISIBLE_COMMENT_WHERE } } },
       },
     });
 
     const hasMore = comments.length > limit;
     const sliced = hasMore ? comments.slice(0, limit) : comments;
-    const data = sliced.map(({ _count, ...c }) => ({
+    const data = sliced.map(({ _count, deletedAt, deletedById, deleteReason, content, ...c }) => ({
       ...c,
+      // Placeholder content: never leak the original text of a removed
+      // comment just because one of its replies is still visible. Moderation
+      // metadata (who removed it / why) is likewise never exposed to a
+      // non-admin viewer — M2 newly surfaces a deleted row at all (as a
+      // placeholder), so this is the first read path where that would leak.
+      content: deletedAt ? '' : content,
+      isDeleted: deletedAt !== null,
       replyCount: _count.replies,
     }));
     return { data, nextCursor: hasMore ? data[data.length - 1].id : null };
@@ -338,7 +369,11 @@ export class SocialService {
     cursor?: number,
     limit = REPLIES_PAGE_SIZE,
   ) {
-    // Ensure the parent actually belongs to this post (prevent cross-post enumeration).
+    await this.assertPostVisible(postId);
+    // Ensure the parent actually belongs to this post (prevent cross-post
+    // enumeration). Deliberately NOT checking `parent.deletedAt` (M2): a
+    // deleted parent with live replies is still shown as a placeholder by
+    // getComments(), so "load more replies" under it must keep working too.
     const parent = await this.prisma.comment.findUnique({
       where: { id: parentId },
       select: { postId: true },
@@ -348,7 +383,7 @@ export class SocialService {
     }
 
     const replies = await this.prisma.comment.findMany({
-      where: { postId, parentId },
+      where: { postId, parentId, ...VISIBLE_COMMENT_WHERE },
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       orderBy: { id: 'asc' },
@@ -363,11 +398,7 @@ export class SocialService {
   }
 
   async addComment(userId: number, postId: number, content: string, parentId?: number) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      select: { id: true, userId: true },
-    });
-    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
+    const post = await this.assertPostVisible(postId);
 
     // A blocked user (either direction) can't comment on the author's post.
     await this.blocks.assertNotBlocked(userId, post.userId);
@@ -375,9 +406,9 @@ export class SocialService {
     if (parentId) {
       const parent = await this.prisma.comment.findUnique({
         where: { id: parentId },
-        select: { id: true, postId: true, parentId: true },
+        select: { id: true, postId: true, parentId: true, deletedAt: true },
       });
-      if (!parent || parent.postId !== postId) {
+      if (!parent || parent.postId !== postId || parent.deletedAt) {
         throw new BadRequestException('Bình luận gốc không hợp lệ');
       }
       if (parent.parentId) {
@@ -412,44 +443,101 @@ export class SocialService {
   async deleteComment(userId: number, commentId: number) {
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },
-      select: { id: true, userId: true, postId: true },
+      select: { id: true, userId: true, postId: true, deletedAt: true },
     });
-    if (!comment) throw new NotFoundException('Không tìm thấy bình luận');
+    if (!comment || comment.deletedAt) throw new NotFoundException('Không tìm thấy bình luận');
     if (comment.userId !== userId) {
       throw new ForbiddenException('Bạn không có quyền xóa bình luận này');
     }
-    return this.deleteCommentCore(comment.id, comment.postId);
+    return this.softDeleteComment(comment.id, comment.postId, userId, undefined);
   }
 
   /** Admin deletion — no ownership check (caller is behind AdminGuard). */
-  async adminDeleteComment(commentId: number) {
+  async adminDeleteComment(adminId: number, commentId: number, reason?: string) {
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },
-      select: { id: true, postId: true },
+      select: { id: true, postId: true, deletedAt: true },
     });
-    if (!comment) throw new NotFoundException('Không tìm thấy bình luận');
-    return this.deleteCommentCore(comment.id, comment.postId);
+    if (!comment || comment.deletedAt) throw new NotFoundException('Không tìm thấy bình luận');
+    return this.softDeleteComment(comment.id, comment.postId, adminId, reason);
   }
 
-  // Shared deletion side-effects (delete + counter decrement incl. replies +
-  // broadcast). Ownership enforced by callers, not a bypass flag.
-  private async deleteCommentCore(commentId: number, postId: number) {
-    // Delete the comment and its (one-level) replies in a single statement and
-    // decrement by the ACTUAL rows removed, all inside one transaction. Counting
-    // replies separately (as before) raced a concurrent reply insert: the cascade
-    // deleted it but the stale count left commentCount permanently too high.
-    await this.prisma.$transaction(async (tx) => {
-      const deleted = await tx.$executeRaw`
-        DELETE FROM comments WHERE id = ${commentId} OR parent_id = ${commentId}`;
-      if (deleted > 0) {
+  /** Admin restore — reverses either a self-delete or a moderation removal.
+   * Per-row only (no cascade to replies): each comment's deletedAt is
+   * independent, so a reply removed in a separate action stays removed.
+   *
+   * Conditional `updateMany` + `count === 1` guard (M1): two concurrent
+   * restores (or a restore racing a delete) both passing the initial
+   * `findUnique` check would otherwise both run the unconditional update and
+   * both increment commentCount, double-counting a single logical restore.
+   * Scoping the update to `deletedAt: { not: null }` makes only the request
+   * that actually flips the row also adjust the counter. */
+  async restoreComment(commentId: number) {
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { id: true, postId: true, deletedAt: true },
+    });
+    if (!comment || !comment.deletedAt) {
+      throw new NotFoundException('Không tìm thấy bình luận đã xoá');
+    }
+
+    const restored = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.comment.updateMany({
+        where: { id: commentId, deletedAt: { not: null } },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
+      });
+      if (result.count === 1) {
         await tx.post.update({
-          where: { id: postId },
-          data: { commentCount: { decrement: deleted } },
+          where: { id: comment.postId },
+          data: { commentCount: { increment: 1 } },
         });
       }
+      return result.count === 1;
     });
 
-    this.gateway.emitCommentDeleted(postId, commentId);
+    if (!restored) {
+      throw new NotFoundException('Không tìm thấy bình luận đã xoá');
+    }
+    return { success: true };
+  }
+
+  // Shared soft-delete side-effects (flip deletedAt + counter decrement +
+  // broadcast). Ownership enforced by callers, not a bypass flag. No cascade to
+  // replies — unlike the old hard-delete (which had to manually cascade because
+  // the FK's onDelete: Cascade would otherwise silently drop child rows without
+  // counting them), soft delete leaves child rows untouched and independently
+  // restorable.
+  //
+  // Conditional `updateMany` + `count === 1` guard (M1): callers already check
+  // `deletedAt` via a prior `findUnique`, but two concurrent delete calls for
+  // the same comment (self-delete racing an admin delete, or a doubled click)
+  // can both pass that check before either commits — an unconditional update
+  // would then decrement commentCount twice for one logical delete. Scoping
+  // this update to `deletedAt: null` makes only the request that actually
+  // flips the row also touch the counter; the loser is a no-op (idempotent).
+  private async softDeleteComment(
+    commentId: number,
+    postId: number,
+    deletedById: number,
+    deleteReason?: string,
+  ) {
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.comment.updateMany({
+        where: { id: commentId, deletedAt: null },
+        data: { deletedAt: new Date(), deletedById, deleteReason },
+      });
+      if (result.count === 1) {
+        await tx.post.update({
+          where: { id: postId },
+          data: { commentCount: { decrement: 1 } },
+        });
+      }
+      return result.count === 1;
+    });
+
+    if (deleted) {
+      this.gateway.emitCommentDeleted(postId, commentId);
+    }
 
     return { success: true };
   }

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Meilisearch, type Index } from 'meilisearch';
 import { PrismaService } from '../prisma/prisma.service';
+import { VISIBLE_POST_WHERE } from '../common/visible-content';
 
 const POSTS_INDEX = 'posts';
 
@@ -106,15 +107,52 @@ export class MeilisearchService implements OnModuleInit {
     if (!this.client) return;
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      include: { user: { select: { username: true } } },
+      include: { user: { select: { username: true, bannedAt: true } } },
     });
     if (!post) return;
+    // A soft-deleted post or a banned author's post must never (re-)enter the
+    // index (L2) — e.g. editing a post the author already deleted, or a
+    // queued index job that runs after a ban landed, would otherwise upsert
+    // it right back in alongside the authoritative Postgres-side filtering.
+    if (post.deletedAt || post.user.bannedAt) {
+      await this.index.deleteDocument(postId);
+      return;
+    }
     await this.index.addDocuments([this.toDoc(post)]);
   }
 
   async deletePost(postId: number): Promise<void> {
     if (!this.client) return;
     await this.index.deleteDocument(postId);
+  }
+
+  /** Bulk-remove a user's posts from the index (ban). Best-effort: a failure
+   * here must never block the moderation action itself. */
+  async deletePosts(postIds: number[]): Promise<void> {
+    if (!this.client || postIds.length === 0) return;
+    try {
+      await Promise.all(postIds.map((id) => this.index.deleteDocument(id)));
+    } catch (error) {
+      this.logger.warn(
+        `Bulk Meilisearch delete failed: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+  }
+
+  /** Bulk-restore a user's posts into the index (unban). Best-effort. */
+  async reindexPosts(postIds: number[]): Promise<void> {
+    if (!this.client || postIds.length === 0) return;
+    try {
+      const posts = await this.prisma.post.findMany({
+        where: { id: { in: postIds } },
+        include: { user: { select: { username: true } } },
+      });
+      if (posts.length) await this.index.addDocuments(posts.map((p) => this.toDoc(p)));
+    } catch (error) {
+      this.logger.warn(
+        `Bulk Meilisearch reindex failed: ${error instanceof Error ? error.message : error}`,
+      );
+    }
   }
 
   async reindexAll(): Promise<number> {
@@ -127,6 +165,11 @@ export class MeilisearchService implements OnModuleInit {
 
     for (;;) {
       const posts = await this.prisma.post.findMany({
+        // Soft-deleted posts and banned authors' posts never enter the index
+        // (L2) — this cursor still walks the full posts table by id (so
+        // pagination stays correct regardless of how sparse the visible rows
+        // are), it just skips writing the invisible ones to Meilisearch.
+        where: VISIBLE_POST_WHERE,
         take: BATCH,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
         orderBy: { id: 'asc' },

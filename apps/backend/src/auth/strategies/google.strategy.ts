@@ -8,6 +8,13 @@ export interface GoogleProfile {
   email: string;
   displayName: string;
   avatarUrl?: string;
+  /** Google's own attestation that `email` belongs to this account. */
+  emailVerified: boolean;
+}
+
+/** Shape of the raw userinfo payload Passport stores on `profile._json`. */
+interface GoogleRawProfile {
+  email_verified?: boolean | string;
 }
 
 @Injectable()
@@ -29,11 +36,17 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     profile: Profile,
     done: VerifyCallback,
   ): void {
+    const rawEmailVerified = (profile as unknown as { _json?: GoogleRawProfile })._json
+      ?.email_verified;
     const user: GoogleProfile = {
       googleId: profile.id,
       email: profile.emails?.[0]?.value ?? '',
       displayName: profile.displayName || profile.username || 'Người dùng',
       avatarUrl: profile.photos?.[0]?.value,
+      // Only an explicit false/"false" counts as unverified; Google always
+      // includes this field as a real boolean, but default to trusted so a
+      // missing field never breaks login.
+      emailVerified: !(rawEmailVerified === false || rawEmailVerified === 'false'),
     };
     done(null, user);
   }

@@ -10,7 +10,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -24,7 +24,6 @@ export class PostsMeController {
   constructor(private readonly postsService: PostsService) {}
 
   @Post('scrape')
-  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 20, ttl: 60 * 60 * 1000 } })
   scrape(@Body() dto: ScrapeUrlDto) {
     return this.postsService.requestScrape(dto.url);
@@ -36,7 +35,6 @@ export class PostsMeController {
   }
 
   @Post()
-  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 10, ttl: 60 * 60 * 1000 } })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreatePostDto) {
     return this.postsService.create(user, dto);

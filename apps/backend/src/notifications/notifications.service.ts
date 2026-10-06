@@ -169,15 +169,18 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     // comment/reaction already succeeded (and, inside react's P2002 try/catch,
     // could be misread as an idempotency conflict). Swallow + log instead.
     try {
-      const notification = await this.prisma.notification.create({
-        data: {
-          recipientId: dto.recipientId,
-          type: dto.type,
-          actorId: dto.actorId,
-          postId: dto.postId,
-        },
-        include: NOTIFICATION_INCLUDE,
-      });
+      const notification =
+        dto.type === 'LIKE' || dto.type === 'FOLLOW'
+          ? await this.upsertDedupedNotification(dto)
+          : await this.prisma.notification.create({
+              data: {
+                recipientId: dto.recipientId,
+                type: dto.type,
+                actorId: dto.actorId,
+                postId: dto.postId,
+              },
+              include: NOTIFICATION_INCLUDE,
+            });
 
       await this.pushToStream(dto.recipientId, notification);
 
@@ -190,6 +193,33 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       );
       return null;
     }
+  }
+
+  /**
+   * Toggling a reaction off/on, or unfollowing/refollowing, repeatedly re-runs
+   * the LIKE/FOLLOW branch of `create()`. A plain `create` would insert a new
+   * row (and push a new SSE event) every single time — spam. Instead this
+   * upserts on the partial unique index `notifications_like_follow_dedup_idx`
+   * (recipient, actor, type, COALESCE(post_id, 0)): the recipient gets at most
+   * one LIKE notification per (actor, post) and one FOLLOW notification per
+   * actor, bumped to "new" (createdAt refreshed, read reset to false) on each
+   * repeat instead of duplicated. Raw SQL because Prisma's schema can't model
+   * a partial unique index, so `upsert()` has no matching compound key to
+   * target.
+   */
+  private async upsertDedupedNotification(dto: CreateNotificationDto) {
+    const rows = await this.prisma.$queryRaw<{ id: bigint }[]>`
+      INSERT INTO notifications (recipient_id, actor_id, type, post_id, read, created_at)
+      VALUES (${dto.recipientId}, ${dto.actorId}, ${dto.type}::"NotificationType", ${dto.postId ?? null}, false, now())
+      ON CONFLICT (recipient_id, actor_id, type, COALESCE(post_id, 0))
+        WHERE type IN ('LIKE', 'FOLLOW')
+        DO UPDATE SET created_at = now(), read = false
+      RETURNING id
+    `;
+    return this.prisma.notification.findUniqueOrThrow({
+      where: { id: rows[0].id },
+      include: NOTIFICATION_INCLUDE,
+    });
   }
 
   createStream(userId: number): Observable<MessageEvent> {
@@ -216,7 +246,15 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     const notifications = await this.prisma.notification.findMany({
       where: { recipientId: userId },
       include: NOTIFICATION_INCLUDE,
-      orderBy: { id: 'desc' },
+      // Sort by (createdAt, id) — NOT plain `id` (M3): upsertDedupedNotification
+      // bumps `created_at` on a repeat LIKE/FOLLOW but keeps the SAME row id, so
+      // an `id DESC` sort left a just-bumped notification stuck wherever it was
+      // originally inserted instead of back at the top. `id` stays as the
+      // tiebreaker for a total order (two rows can share a createdAt
+      // millisecond) and is what the cursor anchors on — Prisma resolves a
+      // single-field cursor against a multi-field orderBy by reading that row's
+      // own (createdAt, id) and building the compound comparison from it.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       // id is BIGINT → the incoming cursor (a JSON number) must be widened.
       ...(cursor ? { cursor: { id: BigInt(cursor) }, skip: 1 } : {}),

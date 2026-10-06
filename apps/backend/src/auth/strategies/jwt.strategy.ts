@@ -58,6 +58,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (authUser.bannedAt) {
       throw new UnauthorizedException('Tài khoản đã bị khóa');
     }
+    if (authUser.suspendedAt) {
+      throw new UnauthorizedException('Tài khoản đang bị tạm khóa');
+    }
     // Per-device revocation: a token that names a session (sid) is valid only
     // while that session row exists. Deleting it (logout / "log out other
     // devices" / password change) kills the token on its next request. Legacy

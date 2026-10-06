@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
+import { attachViewerPostState } from '../common/viewer-post-flags';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 const PUBLIC_PROFILE_SELECT = {
@@ -41,7 +42,8 @@ export class UsersService {
       select: {
         ...PUBLIC_PROFILE_SELECT,
         bannedAt: true,
-        _count: { select: { posts: true } },
+        // Soft-deleted posts must not inflate the public post count (L1).
+        _count: { select: { posts: { where: { deletedAt: null } } } },
       },
     });
     // Banned users' profiles are hidden (404). Self can still see own profile.
@@ -97,15 +99,27 @@ export class UsersService {
     return user;
   }
 
-  async getUserPosts(username: string, cursor?: number, limit = 20, hasProduct = false) {
-    const user = await this.prisma.user.findUnique({ where: { username }, select: { id: true } });
-    if (!user) {
+  async getUserPosts(
+    username: string,
+    cursor?: number,
+    limit = 20,
+    hasProduct = false,
+    viewerId?: number,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      select: { id: true, bannedAt: true },
+    });
+    // A banned user's posts are hidden everywhere, incl. this listing (parity
+    // with findByUsername, which 404s the whole profile).
+    if (!user || user.bannedAt) {
       throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     const posts = await this.prisma.post.findMany({
       where: {
         userId: user.id,
+        deletedAt: null,
         ...(hasProduct ? { productMeta: { not: Prisma.DbNull } } : {}),
       },
       take: limit + 1,
@@ -118,8 +132,9 @@ export class UsersService {
     });
 
     const hasMore = posts.length > limit;
-    const data = hasMore ? posts.slice(0, limit) : posts;
-    return { data, nextCursor: hasMore ? data[data.length - 1].id : null };
+    const sliced = hasMore ? posts.slice(0, limit) : posts;
+    const data = await attachViewerPostState(this.prisma, viewerId, sliced);
+    return { data, nextCursor: hasMore ? sliced[sliced.length - 1].id : null };
   }
 
   async searchUsers(query: string, limit = 20) {
@@ -159,7 +174,7 @@ export class UsersService {
         where: { id: userId },
         select: { totalClicks: true, followersCount: true, followingCount: true },
       }),
-      this.prisma.post.count({ where: { userId } }),
+      this.prisma.post.count({ where: { userId, deletedAt: null } }),
     ]);
     if (!user) {
       throw new NotFoundException('Không tìm thấy người dùng');

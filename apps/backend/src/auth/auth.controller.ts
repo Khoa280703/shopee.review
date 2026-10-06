@@ -3,7 +3,9 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
+  Logger,
   Param,
   Post,
   Query,
@@ -12,7 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import type { User } from '@app/database';
 import { AuthService } from './auth.service';
@@ -45,13 +47,28 @@ import type { GoogleProfile } from './strategies/google.strategy';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     private readonly config: ConfigService,
   ) {}
 
+  /**
+   * Maps a login error to the `?error=` code the login page understands (M5).
+   * Without this, an uncaught exception from googleLogin/facebookLogin (e.g.
+   * a banned/suspended account, or Google refusing to auto-link an unverified
+   * email) reached Nest's default exception filter mid-OAuth-redirect, which
+   * rendered raw JSON in the browser instead of bouncing back to the login
+   * page with a readable message.
+   */
+  private oauthErrorCode(error: unknown): 'account_locked' | 'oauth_unverified' | 'oauth_failed' {
+    if (error instanceof ForbiddenException) return 'account_locked';
+    if (error instanceof BadRequestException) return 'oauth_unverified';
+    return 'oauth_failed';
+  }
+
   @Post('register')
-  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   async register(
     @Req() req: Request,
@@ -63,7 +80,7 @@ export class AuthController {
   }
 
   @Post('login')
-  @UseGuards(ThrottlerGuard, LocalAuthGuard)
+  @UseGuards(LocalAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 15 * 60 * 1000 } })
   async login(
     @Req() req: Request,
@@ -96,7 +113,6 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ success: boolean }> {
     await this.authService.forgotPassword(dto.email);
@@ -105,7 +121,6 @@ export class AuthController {
   }
 
   @Post('reset-password')
-  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   async resetPassword(@Body() dto: ResetPasswordDto): Promise<{ success: boolean }> {
     await this.authService.resetPassword(dto.token, dto.password);
@@ -122,7 +137,6 @@ export class AuthController {
   }
 
   @Post('resend-verification')
-  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 15 * 60 * 1000 } })
   async resendVerification(
     @Body() dto: ResendVerificationDto,
@@ -133,7 +147,7 @@ export class AuthController {
   }
 
   @Post('change-password')
-  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 15 * 60 * 1000 } })
   async changePassword(
     @Req() req: Request,
@@ -174,7 +188,13 @@ export class AuthController {
       return;
     }
 
-    await this.authService.googleLogin(req.user as GoogleProfile, res, sessionMeta(req));
+    try {
+      await this.authService.googleLogin(req.user as GoogleProfile, res, sessionMeta(req));
+    } catch (error) {
+      this.logger.warn(`Google OAuth login failed: ${error instanceof Error ? error.message : error}`);
+      res.redirect(`${frontendUrl}/auth/login?error=${this.oauthErrorCode(error)}`);
+      return;
+    }
     res.redirect(`${frontendUrl}/auth/callback`);
   }
 
@@ -192,7 +212,13 @@ export class AuthController {
       res.redirect(`${frontendUrl}/auth/login?error=oauth_state`);
       return;
     }
-    await this.authService.facebookLogin(req.user as FacebookProfile, res, sessionMeta(req));
+    try {
+      await this.authService.facebookLogin(req.user as FacebookProfile, res, sessionMeta(req));
+    } catch (error) {
+      this.logger.warn(`Facebook OAuth login failed: ${error instanceof Error ? error.message : error}`);
+      res.redirect(`${frontendUrl}/auth/login?error=${this.oauthErrorCode(error)}`);
+      return;
+    }
     res.redirect(`${frontendUrl}/auth/callback`);
   }
 

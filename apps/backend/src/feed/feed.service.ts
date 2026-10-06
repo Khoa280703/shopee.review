@@ -3,6 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { PrismaService } from '../prisma/prisma.service';
 import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
+import { attachViewerPostState } from '../common/viewer-post-flags';
 import { BlocksService } from '../moderation/blocks.service';
 
 // Short TTL: feed is personalized + write-heavy, so 30s smooths bursty reads
@@ -23,9 +24,12 @@ export class FeedService {
     const key = `feed:${userId}:${cursor ?? 'head'}:${limit}`;
     // Cache is best-effort: a Redis error (e.g. the shared noeviction instance
     // filling up) must DEGRADE to a direct DB read, never 500 the whole feed.
+    // Viewer reaction/bookmark state is attached AFTER the cache read (even
+    // though this cache key is already per-user) so it's always as fresh as
+    // this request, never pinned for the cache's 30s TTL.
     try {
       const hit = await this.cache.get<Awaited<ReturnType<FeedService['queryFeed']>>>(key);
-      if (hit) return hit;
+      if (hit) return { ...hit, data: await attachViewerPostState(this.prisma, userId, hit.data) };
     } catch (e) {
       this.logger.warn(`cache get failed for ${key}: ${e instanceof Error ? e.message : e}`);
     }
@@ -40,7 +44,7 @@ export class FeedService {
         this.logger.warn(`cache set failed for ${key}: ${e instanceof Error ? e.message : e}`);
       }
     }
-    return result;
+    return { ...result, data: await attachViewerPostState(this.prisma, userId, result.data) };
   }
 
   private async queryFeed(userId: number, cursor?: number, limit = 20) {
@@ -48,7 +52,8 @@ export class FeedService {
     const blockedIds = await this.blocks.getBlockedUserIds(userId);
     const posts = await this.prisma.post.findMany({
       where: {
-        user: { followers: { some: { followerId: userId } } },
+        deletedAt: null,
+        user: { bannedAt: null, followers: { some: { followerId: userId } } },
         ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
       },
       include: {

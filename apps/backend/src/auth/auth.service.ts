@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Optional,
   NotFoundException,
@@ -15,6 +16,7 @@ import { randomBytes } from 'crypto';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { isReservedUsername } from '../common/reserved-usernames';
+import { normalizeEmail } from '../common/normalize-email';
 import type { AuthUser } from '../common/current-user.decorator';
 import { EMAIL_JOB, EMAIL_QUEUE } from '../queue/queue.constants';
 import { RegisterDto } from './dto/register.dto';
@@ -151,8 +153,9 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto, res: Response, meta?: SessionMeta): Promise<AuthUser> {
+    const email = normalizeEmail(dto.email);
     const existing = await this.prisma.user.findFirst({
-      where: { OR: [{ email: dto.email }, { username: dto.username }] },
+      where: { OR: [{ email }, { username: dto.username }] },
     });
     if (existing) {
       // Generic message on purpose: a per-field answer ("email used" vs
@@ -167,7 +170,7 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: {
         username: dto.username,
-        email: dto.email,
+        email,
         passwordHash,
         displayName: dto.displayName,
         emailVerified: false,
@@ -184,12 +187,26 @@ export class AuthService {
   // Returns the FULL user row (not sanitized) so `login` can sign the token
   // version into the cookie; the controller path sanitizes on the way out.
   async validateUser(email: string, password: string): Promise<User | null> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
     if (!user?.passwordHash) {
       return null;
     }
     const valid = await bcrypt.compare(password, user.passwordHash);
-    return valid ? user : null;
+    if (!valid) return null;
+    // Only reject here (not "wrong credentials") once the password already
+    // proved ownership — disclosing ban/suspend status at that point isn't an
+    // enumeration leak. tokenVersion was already bumped at ban/suspend time, so
+    // any token this login issues matches the CURRENT version and would
+    // otherwise pass JwtStrategy on the very next request.
+    this.assertAccountActive(user);
+    return user;
+  }
+
+  /** Level-1 (suspend) and level-2 (ban) both lock login. Thrown from every
+   * login path (password/Google/Facebook) for an already-existing account. */
+  private assertAccountActive(user: Pick<User, 'bannedAt' | 'suspendedAt'>): void {
+    if (user.bannedAt) throw new ForbiddenException('Tài khoản đã bị khóa');
+    if (user.suspendedAt) throw new ForbiddenException('Tài khoản đang bị tạm khóa');
   }
 
   async login(user: User, res: Response, meta?: SessionMeta): Promise<AuthUser> {
@@ -201,28 +218,37 @@ export class AuthService {
     if (!profile.email) {
       throw new BadRequestException('Google không trả về email');
     }
+    const email = normalizeEmail(profile.email);
 
     let user = await this.prisma.user.findFirst({
-      where: { OR: [{ googleId: profile.googleId }, { email: profile.email }] },
+      where: { OR: [{ googleId: profile.googleId }, { email }] },
     });
+    if (user) this.assertAccountActive(user);
 
     if (!user) {
-      const username = await this.generateUniqueUsername(profile.email);
+      const username = await this.generateUniqueUsername(email);
       user = await this.prisma.user.create({
         data: {
           username,
-          email: profile.email,
+          email,
           googleId: profile.googleId,
           displayName: profile.displayName,
           avatarUrl: profile.avatarUrl,
-          emailVerified: true,
+          emailVerified: profile.emailVerified,
         },
       });
     } else if (!user.googleId) {
-      user = await this.prisma.user.update({
-        where: { id: user.id },
-        data: { googleId: profile.googleId, emailVerified: true },
-      });
+      if (!profile.emailVerified) {
+        // Google itself doesn't vouch for this email, so an attacker could have
+        // registered it first with their own password, hoping the real owner
+        // would later "Sign in with Google" and get auto-linked onto their
+        // account. Refuse the link; the real owner must log in with a password
+        // (or reset it) to prove ownership first.
+        throw new BadRequestException(
+          'Email Google chưa được xác minh, vui lòng đăng nhập bằng mật khẩu',
+        );
+      }
+      user = await this.linkOAuthAccount(user, { googleId: profile.googleId });
     }
 
     await this.setAuthCookie(res, user, meta);
@@ -235,17 +261,19 @@ export class AuthService {
       // create/link a unique account (email is required + unique).
       throw new BadRequestException('Facebook không trả về email — vui lòng cấp quyền email');
     }
+    const email = normalizeEmail(profile.email);
 
     let user = await this.prisma.user.findFirst({
-      where: { OR: [{ facebookId: profile.facebookId }, { email: profile.email }] },
+      where: { OR: [{ facebookId: profile.facebookId }, { email }] },
     });
+    if (user) this.assertAccountActive(user);
 
     if (!user) {
-      const username = await this.generateUniqueUsername(profile.email);
+      const username = await this.generateUniqueUsername(email);
       user = await this.prisma.user.create({
         data: {
           username,
-          email: profile.email,
+          email,
           facebookId: profile.facebookId,
           displayName: profile.displayName,
           avatarUrl: profile.avatarUrl,
@@ -253,14 +281,37 @@ export class AuthService {
         },
       });
     } else if (!user.facebookId) {
-      user = await this.prisma.user.update({
-        where: { id: user.id },
-        data: { facebookId: profile.facebookId, emailVerified: true },
-      });
+      user = await this.linkOAuthAccount(user, { facebookId: profile.facebookId });
     }
 
     await this.setAuthCookie(res, user, meta);
     return this.sanitize(user);
+  }
+
+  /**
+   * Link a provider id onto an existing account found by email (not yet
+   * linked to that provider). If the account's email was never verified by
+   * our own flow, it may belong to an attacker who registered it first hoping
+   * to inherit the real owner's provider login — so the password is revoked
+   * and every session killed before trusting the provider's identity.
+   */
+  private async linkOAuthAccount(
+    user: User,
+    providerId: { googleId: string } | { facebookId: string },
+  ): Promise<User> {
+    const wasUnverified = !user.emailVerified;
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        ...providerId,
+        emailVerified: true,
+        ...(wasUnverified ? { passwordHash: null, tokenVersion: { increment: 1 } } : {}),
+      },
+    });
+    if (wasUnverified) {
+      await this.prisma.session.deleteMany({ where: { userId: user.id } });
+    }
+    return updated;
   }
 
   private async generateUniqueUsername(email: string): Promise<string> {
@@ -288,7 +339,7 @@ export class AuthService {
    * the email exists, to avoid leaking which emails are registered.
    */
   async forgotPassword(email: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
     // Google-only accounts (no passwordHash) can't reset a password.
     if (!user || !user.passwordHash) return;
 
@@ -359,7 +410,7 @@ export class AuthService {
    * attacker invalidating the victim's existing link); only refreshes if expired.
    */
   async resendVerification(email: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
     if (!user || user.emailVerified) return;
 
     let token = user.verifyToken;

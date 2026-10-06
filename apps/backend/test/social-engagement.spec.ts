@@ -32,7 +32,7 @@ function makeService(prismaOverrides: Record<string, unknown>) {
 describe('SocialService.react', () => {
   it('creates a reaction and increments the counter when none exists', async () => {
     const { service, prisma, gateway } = makeService({});
-    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2 });
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2, deletedAt: null, user: { bannedAt: null } });
     prisma.reaction.findUnique.mockResolvedValue(null);
 
     const res = await service.react(1, 1, 'LOVE' as never);
@@ -44,7 +44,7 @@ describe('SocialService.react', () => {
 
   it('toggles OFF when reacting with the same type again', async () => {
     const { service, prisma } = makeService({});
-    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2 });
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2, deletedAt: null, user: { bannedAt: null } });
     prisma.reaction.findUnique.mockResolvedValue({ type: 'LIKE' });
 
     const res = await service.react(1, 1, 'LIKE' as never);
@@ -55,7 +55,7 @@ describe('SocialService.react', () => {
 
   it('switches type without touching the total counter', async () => {
     const { service, prisma } = makeService({});
-    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2 });
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2, deletedAt: null, user: { bannedAt: null } });
     prisma.reaction.findUnique.mockResolvedValue({ type: 'LIKE' });
 
     const res = await service.react(1, 1, 'ANGRY' as never);
@@ -72,7 +72,7 @@ describe('SocialService.react', () => {
 
   it('is idempotent on a concurrent double-tap (P2002 on create is swallowed)', async () => {
     const { service, prisma } = makeService({});
-    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2 });
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2, deletedAt: null, user: { bannedAt: null } });
     prisma.reaction.findUnique.mockResolvedValue(null);
     prisma.$transaction.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: '6' }),
@@ -83,7 +83,7 @@ describe('SocialService.react', () => {
 
   it('blocks reacting when the users have blocked each other', async () => {
     const { service, prisma, blocks } = makeService({});
-    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2 });
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2, deletedAt: null, user: { bannedAt: null } });
     blocks.assertNotBlocked.mockRejectedValue(new ForbiddenException());
     await expect(service.react(1, 1, 'LIKE' as never)).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -98,22 +98,47 @@ describe('SocialService.follow block guard', () => {
   });
 });
 
-describe('SocialService.toggleBookmark', () => {
-  it('adds a bookmark when none exists', async () => {
+describe('SocialService.setBookmark (idempotent, not a toggle — FE audit H2)', () => {
+  it('sets bookmarked=true by creating the row', async () => {
     const { service, prisma } = makeService({});
-    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2 });
-    prisma.bookmark.findUnique.mockResolvedValue(null);
-    const res = await service.toggleBookmark(1, 1);
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2, deletedAt: null, user: { bannedAt: null } });
+    const res = await service.setBookmark(1, 1, true);
     expect(res).toEqual({ bookmarked: true });
     expect(prisma.bookmark.create).toHaveBeenCalledOnce();
   });
 
-  it('removes an existing bookmark', async () => {
+  it('is idempotent when already bookmarked (swallows the unique violation)', async () => {
     const { service, prisma } = makeService({});
-    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2 });
-    prisma.bookmark.findUnique.mockResolvedValue({ userId: 1, postId: 1 });
-    const res = await service.toggleBookmark(1, 1);
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2, deletedAt: null, user: { bannedAt: null } });
+    prisma.bookmark.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: '6' }),
+    );
+    await expect(service.setBookmark(1, 1, true)).resolves.toEqual({ bookmarked: true });
+  });
+
+  it('sets bookmarked=false by deleting the row', async () => {
+    const { service, prisma } = makeService({});
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2, deletedAt: null, user: { bannedAt: null } });
+    const res = await service.setBookmark(1, 1, false);
     expect(res).toEqual({ bookmarked: false });
     expect(prisma.bookmark.delete).toHaveBeenCalledOnce();
+  });
+
+  it('is idempotent when already un-bookmarked (swallows the not-found)', async () => {
+    const { service, prisma } = makeService({});
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2, deletedAt: null, user: { bannedAt: null } });
+    prisma.bookmark.delete.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('missing', { code: 'P2025', clientVersion: '6' }),
+    );
+    await expect(service.setBookmark(1, 1, false)).resolves.toEqual({ bookmarked: false });
+  });
+});
+
+describe('SocialService.bookmarkStatus', () => {
+  it('reports the viewer bookmark state without mutating anything', async () => {
+    const { service, prisma } = makeService({});
+    prisma.post.findUnique.mockResolvedValue({ id: 1, userId: 2, deletedAt: null, user: { bannedAt: null } });
+    prisma.bookmark.findUnique.mockResolvedValue({ userId: 1 });
+    await expect(service.bookmarkStatus(1, 1)).resolves.toEqual({ bookmarked: true });
   });
 });

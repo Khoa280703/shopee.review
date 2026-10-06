@@ -12,7 +12,7 @@ import {
 import { IsEnum } from 'class-validator';
 import type { Request } from 'express';
 import { ReactionType } from '@app/database';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
@@ -48,7 +48,7 @@ export class ReactionsController {
   // Login required (parity with every other interaction) so the shareCount that
   // feeds the trending score can't be inflated by anonymous drip requests.
   @Post(':id/share')
-  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 30, ttl: 60 * 1000 } })
   share(@Param('id', ParseIntPipe) id: number) {
     return this.socialService.share(id);

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
+import { VISIBLE_POST_SQL, VISIBLE_POST_WHERE } from '../common/visible-content';
 import { UsersService } from '../users/users.service';
 import { MeilisearchService } from './meilisearch.service';
 
@@ -78,8 +79,11 @@ export class SearchService {
   }
 
   private async loadPostsByIds(ids: number[]) {
+    // The Meilisearch index itself isn't moderation-aware (it's kept in sync by
+    // explicit add/delete calls on ban/unban/soft-delete/restore), so this
+    // Postgres-side filter is the authoritative backstop against any staleness.
     const posts = await this.prisma.post.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, ...VISIBLE_POST_WHERE },
       include: { user: { select: PUBLIC_AUTHOR_SELECT } },
     });
     const byId = new Map(posts.map((p) => [p.id, p]));
@@ -113,6 +117,7 @@ export class SearchService {
       JOIN users u ON p.user_id = u.id
       WHERE to_tsvector('simple', p.title || ' ' || coalesce(p.content, ''))
         @@ plainto_tsquery('simple', ${query})
+        AND ${VISIBLE_POST_SQL}
       ORDER BY ts_rank(
         to_tsvector('simple', p.title || ' ' || coalesce(p.content, '')),
         plainto_tsquery('simple', ${query})

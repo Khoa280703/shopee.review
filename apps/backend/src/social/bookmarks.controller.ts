@@ -1,6 +1,7 @@
-import { Controller, Get, Param, ParseIntPipe, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
+import { SetBookmarkDto } from './dto/set-bookmark.dto';
 import { SocialService } from './social.service';
 
 @Controller()
@@ -8,9 +9,19 @@ import { SocialService } from './social.service';
 export class BookmarksController {
   constructor(private readonly socialService: SocialService) {}
 
+  @Get('posts/:id/bookmark')
+  status(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    return this.socialService.bookmarkStatus(id, user.id);
+  }
+
+  // Idempotent set — body states the desired end state (not a toggle).
   @Put('posts/:id/bookmark')
-  toggle(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
-    return this.socialService.toggleBookmark(user.id, id);
+  setBookmark(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetBookmarkDto,
+  ) {
+    return this.socialService.setBookmark(user.id, id, dto.bookmarked);
   }
 
   @Get('me/bookmarks')

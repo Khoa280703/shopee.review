@@ -77,7 +77,11 @@ describe('bullBoardAuth', () => {
 describe('FeedService cache degradation', () => {
   it('returns DB results when cache.get throws', async () => {
     const posts = [{ id: 2 }, { id: 1 }];
-    const prisma = { post: { findMany: vi.fn().mockResolvedValue(posts) } };
+    const prisma = {
+      post: { findMany: vi.fn().mockResolvedValue(posts) },
+      reaction: { findMany: vi.fn().mockResolvedValue([]) },
+      bookmark: { findMany: vi.fn().mockResolvedValue([]) },
+    };
     const cache = {
       get: vi.fn().mockRejectedValue(new Error('redis down')),
       set: vi.fn().mockResolvedValue(undefined),
@@ -120,7 +124,13 @@ describe('AdminService.setVerified', () => {
       user: { findUnique: vi.fn().mockResolvedValue(userRow), update: vi.fn().mockResolvedValue({}) },
       adminAuditLog: { create: vi.fn().mockResolvedValue({}) },
     };
-    const service = new AdminService(prisma as never, {} as never, {} as never, {} as never);
+    const service = new AdminService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
     return { service, prisma };
   }
 
@@ -161,24 +171,36 @@ describe('RetentionService batched click_log delete', () => {
 // Comment deletion decrements the counter by the rows actually removed
 // ---------------------------------------------------------------------------
 describe('SocialService.adminDeleteComment', () => {
-  it('decrements commentCount by the number of rows deleted (comment + replies)', async () => {
-    const tx = {
-      $executeRaw: vi.fn().mockResolvedValue(3), // comment + 2 replies
-      post: { update: vi.fn().mockResolvedValue({}) },
-    };
+  it('soft-deletes the single row and decrements commentCount by 1 (no cascade to replies)', async () => {
     const prisma = {
-      comment: { findUnique: vi.fn().mockResolvedValue({ id: 10, postId: 7 }) },
-      $transaction: vi.fn().mockImplementation((cb: (t: unknown) => unknown) => cb(tx)),
+      comment: {
+        findUnique: vi.fn().mockResolvedValue({ id: 10, postId: 7, deletedAt: null }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      post: { update: vi.fn().mockResolvedValue({}) },
+      $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) => fn(prisma)),
     };
     const gateway = { emitCommentDeleted: vi.fn() };
     const service = new SocialService(prisma as never, {} as never, gateway as never, {} as never);
 
-    await service.adminDeleteComment(10);
-    expect(tx.post.update).toHaveBeenCalledWith({
+    await service.adminDeleteComment(1, 10, 'spam');
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 10, deletedAt: null },
+      data: { deletedAt: expect.any(Date), deletedById: 1, deleteReason: 'spam' },
+    });
+    expect(prisma.post.update).toHaveBeenCalledWith({
       where: { id: 7 },
-      data: { commentCount: { decrement: 3 } },
+      data: { commentCount: { decrement: 1 } },
     });
     expect(gateway.emitCommentDeleted).toHaveBeenCalledWith(7, 10);
+  });
+
+  it('rejects deleting an already-deleted comment', async () => {
+    const prisma = {
+      comment: { findUnique: vi.fn().mockResolvedValue({ id: 10, postId: 7, deletedAt: new Date() }) },
+    };
+    const service = new SocialService(prisma as never, {} as never, {} as never, {} as never);
+    await expect(service.adminDeleteComment(1, 10)).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 

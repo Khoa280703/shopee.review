@@ -14,6 +14,8 @@ import { Prisma } from '@app/database';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../common/current-user.decorator';
 import { PUBLIC_AUTHOR_SELECT } from '../common/user-select';
+import { VISIBLE_POST_SQL, VISIBLE_POST_WHERE } from '../common/visible-content';
+import { attachViewerPostState } from '../common/viewer-post-flags';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   INDEX_JOB,
@@ -167,15 +169,15 @@ export class PostsService {
     return result;
   }
 
-  async findAll(dto: QueryPostsDto) {
+  async findAll(dto: QueryPostsDto, viewerId?: number) {
     const limit = dto.limit ?? 20;
     // Free-text search goes through the Postgres FTS GIN index (posts_search_idx)
     // via a raw query — the previous ILIKE '%term%' could not use any index and
     // seq-scanned the whole table. Keyset-paginated by id to keep the contract.
     if (dto.search) {
-      return this.querySearch(dto.search, dto.cursor, limit, dto.categoryId);
+      return this.querySearch(dto.search, dto.cursor, limit, dto.categoryId, viewerId);
     }
-    const where: Prisma.PostWhereInput = {};
+    const where: Prisma.PostWhereInput = { ...VISIBLE_POST_WHERE };
     if (dto.categoryId) where.categoryId = dto.categoryId;
 
     // Always tie-break by unique id so cursor pagination is STABLE. Ordering by
@@ -195,13 +197,16 @@ export class PostsService {
     });
 
     const hasMore = posts.length > limit;
-    const data = hasMore ? posts.slice(0, limit) : posts;
-    return { data, nextCursor: hasMore ? data[data.length - 1].id : null };
+    const sliced = hasMore ? posts.slice(0, limit) : posts;
+    const data = await attachViewerPostState(this.prisma, viewerId, sliced);
+    return { data, nextCursor: hasMore ? sliced[sliced.length - 1].id : null };
   }
 
   async findOne(id: number) {
-    const post = await this.prisma.post.findUnique({
-      where: { id },
+    // findFirst (not findUnique) because the visibility predicate (not
+    // soft-deleted, author not banned) isn't expressible in a unique lookup.
+    const post = await this.prisma.post.findFirst({
+      where: { id, ...VISIBLE_POST_WHERE },
       include: POST_INCLUDE,
     });
     if (!post) {
@@ -210,11 +215,16 @@ export class PostsService {
     return post;
   }
 
-  async findExplore(offset: number, limit: number, categoryId?: number) {
+  async findExplore(offset: number, limit: number, categoryId?: number, viewerId?: number) {
     const key = `explore:${categoryId ?? 'all'}:${offset}:${limit}`;
-    return this.cached(key, () => this.queryExplore(offset, limit, categoryId), {
+    // The post list itself is cached (shared across every viewer); per-viewer
+    // reaction/bookmark state is attached AFTER the cache read/write so the
+    // cached entry never bakes in one user's state for everyone else.
+    const result = await this.cached(key, () => this.queryExplore(offset, limit, categoryId), {
       shouldCache: (r) => r.data.length > 0,
     });
+    const data = await attachViewerPostState(this.prisma, viewerId, result.data);
+    return { ...result, data };
   }
 
   private async queryExplore(offset: number, limit: number, categoryId?: number) {
@@ -224,8 +234,8 @@ export class PostsService {
     // and makes cost independent of total table size (uses created_at index).
     const recent = Prisma.sql`p.created_at > NOW() - INTERVAL '30 days'`;
     const whereClause = categoryId
-      ? Prisma.sql`WHERE p.category_id = ${categoryId} AND ${recent}`
-      : Prisma.sql`WHERE ${recent}`;
+      ? Prisma.sql`WHERE p.category_id = ${categoryId} AND ${recent} AND ${VISIBLE_POST_SQL}`
+      : Prisma.sql`WHERE ${recent} AND ${VISIBLE_POST_SQL}`;
 
     const rows = await this.prisma.$queryRaw<RawPostRow[]>`
       SELECT
@@ -266,6 +276,7 @@ export class PostsService {
     cursor: number | undefined,
     limit: number,
     categoryId?: number,
+    viewerId?: number,
   ) {
     const match = Prisma.sql`to_tsvector('simple', p.title || ' ' || coalesce(p.content, '')) @@ plainto_tsquery('simple', ${search})`;
     const catClause = categoryId ? Prisma.sql`AND p.category_id = ${categoryId}` : Prisma.empty;
@@ -275,16 +286,17 @@ export class PostsService {
       SELECT p.*, u.username, u.display_name, u.avatar_url, u.verified
       FROM posts p
       JOIN users u ON u.id = p.user_id
-      WHERE ${match} ${catClause} ${cursorClause}
+      WHERE ${match} ${catClause} ${cursorClause} AND ${VISIBLE_POST_SQL}
       ORDER BY p.id DESC
       LIMIT ${limit + 1}
     `;
 
     const hasMore = rows.length > limit;
-    const data = hasMore ? rows.slice(0, limit) : rows;
+    const sliced = hasMore ? rows.slice(0, limit) : rows;
+    const data = await attachViewerPostState(this.prisma, viewerId, sliced.map(mapRawPostRow));
     return {
-      data: data.map(mapRawPostRow),
-      nextCursor: hasMore ? data[data.length - 1].id : null,
+      data,
+      nextCursor: hasMore ? sliced[sliced.length - 1].id : null,
     };
   }
 
@@ -307,6 +319,7 @@ export class PostsService {
         u.verified
       FROM trending_posts_mv mv
       JOIN users u ON u.id = mv.user_id
+      WHERE u.banned_at IS NULL
       ORDER BY mv.score DESC, mv.id DESC
       LIMIT ${limit}
     `;
@@ -359,35 +372,60 @@ export class PostsService {
     return post;
   }
 
+  /** Self-delete — SOFT delete, same as moderation removal. Reversible only via
+   * admin restore (there is no self-service undelete). */
   async remove(userId: number, postId: number) {
     await this.assertOwner(userId, postId);
-    await this.deletePost(postId);
+    await this.softDeletePost(postId, userId, undefined);
   }
 
-  /** Admin deletion — no ownership check (caller is behind AdminGuard). */
-  async adminRemovePost(postId: number) {
+  /** Admin deletion — no ownership check (caller is behind AdminGuard). SOFT
+   * delete so an appeal can restore it; reason is recorded for the audit log. */
+  async adminRemovePost(adminId: number, postId: number, reason?: string) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
-    if (!post) throw new NotFoundException('Không tìm thấy bài viết');
-    await this.deletePost(postId);
+    if (!post || post.deletedAt) throw new NotFoundException('Không tìm thấy bài viết');
+    await this.softDeletePost(postId, adminId, reason);
     return { success: true };
   }
 
-  // Shared deletion side-effects (delete row + search-index sync). Ownership is
-  // enforced by callers, NOT by a bypass flag (avoids a boolean IDOR trap).
-  private async deletePost(postId: number) {
-    await this.prisma.post.delete({ where: { id: postId } });
+  /** Admin restore — reverses either a self-delete or a moderation removal. */
+  async restorePost(postId: number) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, deletedAt: true },
+    });
+    if (!post || !post.deletedAt) {
+      throw new NotFoundException('Không tìm thấy bài viết đã xoá');
+    }
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { deletedAt: null, deletedById: null, deleteReason: null },
+    });
+    void this.syncSearchIndex('upsert', postId);
+    return { success: true };
+  }
+
+  // Shared soft-delete side-effects (flip deletedAt + search-index removal).
+  // Ownership is enforced by callers, NOT by a bypass flag (avoids a boolean
+  // IDOR trap). Nothing is ever hard-deleted here — only account
+  // self-deletion (UsersService.deleteAccount) hard-deletes posts, via cascade.
+  private async softDeletePost(postId: number, deletedById: number, deleteReason?: string) {
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { deletedAt: new Date(), deletedById, deleteReason },
+    });
     void this.syncSearchIndex('delete', postId);
   }
 
   private async assertOwner(userId: number, postId: number) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      select: { userId: true },
+      select: { userId: true, deletedAt: true },
     });
-    if (!post) {
+    if (!post || post.deletedAt) {
       throw new NotFoundException('Không tìm thấy bài viết');
     }
     if (post.userId !== userId) {

@@ -58,6 +58,23 @@ export class ReportsService {
     });
   }
 
+  /**
+   * Auto-resolve every PENDING report against a target once an admin acts on it
+   * directly (delete the post/comment, ban/suspend the user) — otherwise those
+   * reports sit PENDING forever even though the thing they reported about is
+   * already gone, and the queue never drains.
+   */
+  async autoResolve(
+    targetType: ReportTargetType,
+    targetId: number,
+    adminId: number,
+  ): Promise<void> {
+    await this.prisma.report.updateMany({
+      where: { targetType, targetId, status: ReportStatus.PENDING },
+      data: { status: ReportStatus.RESOLVED, resolvedBy: adminId },
+    });
+  }
+
   async resolve(id: number, status: ReportStatus, adminId: number) {
     try {
       await this.prisma.report.update({
