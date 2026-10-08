@@ -228,34 +228,49 @@ export class PostsService {
   }
 
   private async queryExplore(offset: number, limit: number, categoryId?: number) {
-    // Bound the scan to the last 30 days (same window as the trending MV). The
-    // scoring formula already zeroes recency bonuses after 7 days, so older
-    // posts only ranked by raw counters — dropping them keeps "explore" fresh
-    // and makes cost independent of total table size (uses created_at index).
+    // Two tiers: posts from the last 30 days (same window as the trending MV)
+    // ranked by engagement score, then older posts newest-first so the feed
+    // never runs dry when nothing was posted recently. Each branch is capped at
+    // offset+limit+1 rows, so cost stays independent of total table size.
     const recent = Prisma.sql`p.created_at > NOW() - INTERVAL '30 days'`;
-    const whereClause = categoryId
-      ? Prisma.sql`WHERE p.category_id = ${categoryId} AND ${recent} AND ${VISIBLE_POST_SQL}`
-      : Prisma.sql`WHERE ${recent} AND ${VISIBLE_POST_SQL}`;
+    const catClause = categoryId ? Prisma.sql`AND p.category_id = ${categoryId}` : Prisma.empty;
+    const branchLimit = offset + limit + 1;
 
     const rows = await this.prisma.$queryRaw<RawPostRow[]>`
-      SELECT
-        p.*,
-        u.username,
-        u.display_name,
-        u.avatar_url,
-        u.verified,
+      SELECT * FROM (
         (
-          p.like_count    * 3 +
-          p.comment_count * 5 +
-          p.click_count   * 2 +
-          CASE WHEN p.created_at > NOW() - INTERVAL '24 hours' THEN 30 ELSE 0 END +
-          CASE WHEN p.created_at > NOW() - INTERVAL '48 hours' THEN 15 ELSE 0 END +
-          CASE WHEN p.created_at > NOW() - INTERVAL '7 days'  THEN  5 ELSE 0 END
-        ) AS score
-      FROM posts p
-      JOIN users u ON u.id = p.user_id
-      ${whereClause}
-      ORDER BY score DESC, p.id DESC
+          SELECT
+            p.*,
+            u.username,
+            u.display_name,
+            u.avatar_url,
+            u.verified,
+            0 AS tier,
+            (
+              p.like_count    * 3 +
+              p.comment_count * 5 +
+              p.click_count   * 2 +
+              CASE WHEN p.created_at > NOW() - INTERVAL '24 hours' THEN 30 ELSE 0 END +
+              CASE WHEN p.created_at > NOW() - INTERVAL '48 hours' THEN 15 ELSE 0 END +
+              CASE WHEN p.created_at > NOW() - INTERVAL '7 days'  THEN  5 ELSE 0 END
+            ) AS score
+          FROM posts p
+          JOIN users u ON u.id = p.user_id
+          WHERE ${recent} ${catClause} AND ${VISIBLE_POST_SQL}
+          ORDER BY score DESC, p.id DESC
+          LIMIT ${branchLimit}
+        )
+        UNION ALL
+        (
+          SELECT p.*, u.username, u.display_name, u.avatar_url, u.verified, 1 AS tier, 0 AS score
+          FROM posts p
+          JOIN users u ON u.id = p.user_id
+          WHERE NOT (${recent}) ${catClause} AND ${VISIBLE_POST_SQL}
+          ORDER BY p.created_at DESC, p.id DESC
+          LIMIT ${branchLimit}
+        )
+      ) ranked
+      ORDER BY tier, score DESC, created_at DESC, id DESC
       LIMIT ${limit + 1}
       OFFSET ${offset}
     `;
